@@ -1,0 +1,92 @@
+1: if invoice is created but job is not created. Check using this code
+ 1.1: Store refernceIDs for future purpose
+2: check if job is alredy created by refernceID
+ 2.1: check the invoices that have distrinutorIds linked with thanaIds
+3:execute insert query using specific date
+4: Update jobcode using refernceID
+5: check job is created by refernceID
+
+1.
+	select j.CreatedDate,j.InvoiceDate,j.SubscriberId, j.ThanaId from SalesInvoice j  where cast(j.CreatedDate as Date)=cast('15 Jan 2020' as Date)
+	and j.SubscriberId not in (
+	select distinct j.SubscriberId from job  j where  cast(j.CreatedDate as Date)=cast('15 Jan 2020' as Date)
+	and j.SubscriberId is not null)
+	order by j.CreatedDate desc
+
+  1.1: 154088,154295
+
+2.
+	select * from Job where ReferenceID in (
+	152854,
+	152902
+	)
+   2.1:
+     Select si.*,T.DistributorID from SalesInvoice si
+ 	(Select ThanaID,DistributorID=MAX(DistributorID) from 
+	 BusinessPartnerLocation bpl Group by ThanaID) T ON si.ThanaId=T.ThanaID
+     Where T.DistributorID>0
+
+ 3.
+
+ Insert into Job ([JobTypeID]
+      ,[JobCode]
+      ,[IssueDate]
+      ,[Subject]
+      ,[EntryDateTime]
+      ,[Status]
+      ,[CustomerID]
+      ,[CustomerName]
+      ,[CustomerPhone]
+      ,[CreatedBy]
+      ,[CreatedDate]
+      ,[ThanaID]
+      ,[DistributorID]
+      ,[STBnumber]
+      ,[Gender]
+      ,[Landmark]
+      ,[RoadNo]
+	  ,[HouseNo]
+      ,[Cpe]
+      ,[servicePackageID]
+      ,[CustomerNID]
+      ,[CustomerDOB]
+      ,[DealerID]
+      ,[SubscriberId]
+      ,[ReferenceType]
+      ,[ReferenceID]
+	  )                             
+	 select distinct JobTypeID='1','' JobCode,j.InvoiceDate as IssueDate,'New Installation Request' as Subject,
+	j.InvoiceDate as EntryDateTime,0 as Status,
+	j.CustomerID,
+	 bp.Name CustomerName,bp.OwnerMobile CustomerPhone,j.CreatedBy,
+	 j.InvoiceDate CreatedDate,t.ThanaID,
+	 T.DistributorID,sss.SerialNo STBnumber,bp.Gender,j.LandMark,j.RoadNo,j.HouseNo,j.CPE,                               //Query which have thana and distributorIds
+	 j.PackageId servicePackageID,bp.NationalID CustomerNID,bp.DateOfBirth CustomerDOB,j.ShowroomID DealerID,
+	j.SubscriberId,1 as ReferenceType,j.InvoiceID ReferenceID
+	 from SalesInvoice j  
+     INNER Join  
+      (Select ThanaID,DistributorID=MAX(DistributorID) from BusinessPartnerLocation bpl Group by ThanaID) T ON j.ThanaId=T.ThanaID
+    INNER  JOIN InvoiceLineItem AS ili ON j.InvoiceID= ili.InvoiceID
+    INNER JOIN InvoiceLineItemSerial AS ilis ON j.InvoiceID=ilis.InvoiceID  AND ili.InvoiceLineItemID=ilis.InvoiceLineItemID
+    INNER JOIN skubatchstockserial AS sss ON sss.SKUSerialID=ilis.SerialID AND sss.SKUBatchID=ilis.SKUBatchID
+   LEFT Join  BusinessPartner bp on j.CustomerID=bp.BPID and bp.Category=11 
+   where cast(j.CreatedDate as Date)=cast('7 Jan 2020' as Date)
+   and j.SubscriberId not in (
+   select distinct j.SubscriberId from job  j where  cast(j.CreatedDate as Date)>=cast('7 Jan 2020' as Date)
+   and j.SubscriberId is not null)
+   and T.DistributorID>0
+   and sss.SerialStatus=1
+
+
+   4.
+     Update job set jobcode=cast(job.jobid as varchar) where ReferenceID in (
+	155202,
+	155272
+	)
+
+   5.
+
+   select * from Job where ReferenceID in (
+   152854,
+   152902
+   )
