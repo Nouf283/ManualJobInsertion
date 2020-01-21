@@ -1,0 +1,16 @@
+1. Find the Job with subscriberID
+2.find the thanaID and distributorID of the given distributor
+3.Update the thanaid and distributorID of the job 
+  3.1 delete the jobassignment of the job if exist
+  3.2 Update the job status 0 (open)
+  3.3 Update the startdatetime and endDateTime to null
+
+
+1. select * from Job where SubscriberId='40087733'
+2. select * from BusinessPartner where Name like 'M S%'
+   select thanaID,* from BusinessPartnerLocation where DistributorID=59307
+3. 
+   3.1 select * from JobAssignmentHistory where jobid=56341
+   update Job set ThanaID=503,DistributorID=59307,status=0,StartDateTime=null,EndDateTime=null where jobid=56341 and SubscriberId='40087733'
+
+
