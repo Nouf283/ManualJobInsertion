@@ -1,0 +1,95 @@
+Manual Sales and Manual Job Create:
+
+1. Find which sales are not created
+
+
+Select * from APIResponse Where CAST(CreatedDate AS DATE)=CAST('26 Jan 2020' as DAte)
+AND SubscriptionsResponse  LIKE '%"accounts_receivable":{"number":%' AND ReferenceId IS NULL
+
+(or they can raise issues with api response id and created Date)
+
+
+2. open Postman
+
+3. take the api response id (suppose 52276)
+
+4.http://localhost:62524/api/Manifest/Patch/52276 in hhtp get method  (Menifest controller-> patch Method)
+
+5. replace the invoice date with apiresponse created Date in  saveSalesInvoice Method 
+
+6. then SaveJob Method---> created Date,IssueDate,EntryDate replaced by Invoice Date
+
+7. Then Invoive and Job Will be saved in postMan response
+
+8. IF Job is not  Saved u have save it manually by this:
+  8.1 Before this
+
+      a. check if sales invoice is created
+      b. check the distributor id exist in thanaid
+
+ select CreatedDate,* from  APIResponse where id in (52276)
+
+select thanaID,* from SalesInvoice where InvoiceID=159381 (reference id from apiresponse table)
+
+select * from Job where ReferenceID=159381 (InvoiceID)
+
+select * from BusinessPartnerLocation where ThanaID=467
+
+8.2 if Installer distributor exist
+  
+  Insert into Job ([JobTypeID]
+      ,[JobCode]
+      ,[IssueDate]
+      ,[Subject]
+      ,[EntryDateTime]
+      ,[Status]
+      ,[CustomerID]
+      ,[CustomerName]
+      ,[CustomerPhone]
+      ,[CreatedBy]
+      ,[CreatedDate]
+      ,[ThanaID]
+      ,[DistributorID]
+      ,[STBnumber]
+      ,[Gender]
+      ,[Landmark]
+      ,[RoadNo]
+	  ,[HouseNo]
+      ,[Cpe]
+      ,[servicePackageID]
+      ,[CustomerNID]
+      ,[CustomerDOB]
+      ,[DealerID]
+      ,[SubscriberId]
+      ,[ReferenceType]
+      ,[ReferenceID]
+	  ) 
+ select distinct JobTypeID='1','' JobCode,j.InvoiceDate as IssueDate,'New Installation Request' as Subject,
+	j.InvoiceDate as EntryDateTime,0 as Status,
+	j.CustomerID,
+	 bp.Name CustomerName,bp.OwnerMobile CustomerPhone,j.CreatedBy,
+	 j.InvoiceDate CreatedDate,t.ThanaID,
+	 T.DistributorID,sss.SerialNo STBnumber,bp.Gender,j.LandMark,j.RoadNo,j.HouseNo,j.CPE,                               
+	 j.PackageId servicePackageID,bp.NationalID CustomerNID,bp.DateOfBirth CustomerDOB,j.ShowroomID DealerID,
+	j.SubscriberId,1 as ReferenceType,j.InvoiceID ReferenceID
+	 from SalesInvoice j  
+     INNER Join  
+      (Select ThanaID,DistributorID=MAX(DistributorID) from BusinessPartnerLocation bpl Group by ThanaID) T ON j.ThanaId=T.ThanaID
+    INNER  JOIN InvoiceLineItem AS ili ON j.InvoiceID= ili.InvoiceID
+    INNER JOIN InvoiceLineItemSerial AS ilis ON j.InvoiceID=ilis.InvoiceID  AND ili.InvoiceLineItemID=ilis.InvoiceLineItemID
+    INNER JOIN skubatchstockserial AS sss ON sss.SKUSerialID=ilis.SerialID AND sss.SKUBatchID=ilis.SKUBatchID
+   LEFT Join  BusinessPartner bp on j.CustomerID=bp.BPID and bp.Category=11 
+   where j.InvoiceID=159381 (InvoiceID)
+   and T.DistributorID>0
+   and sss.SerialStatus=1;
+ 
+ 8.3  Update job set jobcode=cast(job.jobid as varchar) where ReferenceID in (InvoiceID)
+
+
+ If Installer distributor not exist then Job Must NOT BE creayed
+
+
+
+
+
+

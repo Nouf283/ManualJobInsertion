@@ -1,0 +1,21 @@
+1. Find if SubscriberID is null and salesInvoice is not created:
+
+ select * from APIResponse ar where
+CAST(CreatedDate AS DATE)=CAST('23 Jan 2020' as date)
+--ReferenceObject like '%N8784B19050032697%' AND
+--AND ReferenceObject not Like '%"SubscriberId":null%' AND ReferenceId IS NULL
+AND ReferenceObject Like '%"SubscriberId":null%' AND ReferenceId IS NULL
+
+
+2. Find if SubscriberID is created but salesInvoice is not created:
+
+
+select * from APIResponse ar where
+CAST(CreatedDate AS DATE)=CAST('25 Jan 2020' as date)
+--ReferenceObject like '%N8784B19050032697%' AND
+--AND ReferenceObject not Like '%"SubscriberId":null%' AND ReferenceId IS NULL
+AND ReferenceId IS NULL AND Id  Not IN (select id from APIResponse ar where
+CAST(CreatedDate AS DATE)=CAST('25 Jan 2020' as date)
+--ReferenceObject like '%N8784B19050032697%' AND
+--AND ReferenceObject not Like '%"SubscriberId":null%' AND ReferenceId IS NULL
+AND ReferenceObject Like '%"SubscriberId":null%' AND ReferenceId IS NULL)
