@@ -1,0 +1,702 @@
+<div style="margin:15px;" [ngBusy]="[_getBusinessPartnerSubscriber$,_getCsvSubscriber$,_getallJobs,_getvariousJobs,_initEmployeeSubscribers$,_saveJobSubscribers$,_getThanaSubscriber$,_getDistrictSubscriber$,_getBusinessPartnerLocationSubscriber$,_getRegionJobs,_getJobCounts,_checkDistributorEmployeeSubscriber$,
+     _getJobInstallers,_initRegionForLoginBasedMarket,_getDistributorsByRegion,_getTeams,_getDistributorsByRegions,_getDistributorWiseEmployeeCount,
+     _getDistributorEmployeeMarket]">
+
+    <h5 class="page-header2 text-left inline-header">WFMS Supervisor DashBoard</h5>
+
+    <hr class="page-header-hr" />
+    <div class="card">
+        <div class="card-body">
+            <div class="row">
+
+                <div class="col-md-3">
+
+                    <div class="k-form-field">
+                        <label><font [size]="'2pt'"><b>Search Type</b></font></label><br />
+                        <input type="radio" name="group" id="radio1" class="k-radio" [checked]='true' (click)="somethingChanged(true,false)" />
+                        <label class="k-radio-label" for="radio1"><b>Region Wise</b></label>&nbsp;
+
+                        <input type="radio" name="group" class="k-radio" id="radio3" (click)="somethingChanged(false,true)" />
+                        <label class="k-radio-label" for="radio3"><b>Division Wise</b></label>
+                    </div>
+                </div>
+
+
+            </div>
+            <br />
+            <div class="row">
+                <div class="col-12">
+                    <div class="row col-12">
+
+                        <div class="col-3" *ngIf="ischeckedRegion == true">
+                            <label class="form-control-label" for="region">Region</label>
+                            <kendo-dropdownlist class="form-control form-control-sm input-sm"
+                                                id="region"
+                                                [(ngModel)]="regionID"
+                                                [data]="regions"
+                                                [defaultItem]="{ Name: 'Select a region', PKID: null }"
+                                                [textField]="'Name'"
+                                                [valueField]="'PKID'"
+                                                (valueChange)="regionChangeHandler($event)"
+                                                [valuePrimitive]="true"
+                                                style="margin-bottom:10px; margin-right:10px;">
+                            </kendo-dropdownlist>
+                        </div>
+
+                        <div class="col-3" *ngIf="ischeckedRegion == true">
+                            <label class="form-control-label" for="area">Area</label>
+                            <kendo-dropdownlist class="form-control form-control-sm input-sm"
+                                                id="area"
+                                                [(ngModel)]="areaID"
+                                                [data]="areas"
+                                                (valueChange)="areaChangeHandler($event)"
+                                                [defaultItem]="{ Name: 'Select a area', PKID: null }"
+                                                [textField]="'Name'"
+                                                [valueField]="'PKID'"
+                                                [valuePrimitive]="true"
+                                                style="margin-bottom:15px;">
+                            </kendo-dropdownlist>
+                        </div>
+
+                        <div class="col-3" *ngIf="isCheckedDivision == true">
+                            <label class="form-control-label" for="district">District</label>
+                            <kendo-dropdownlist class="form-control form-control-sm input-sm"
+                                                id="district"
+                                                [data]="districtUser"
+                                                [(ngModel)]="districtID"
+                                                [defaultItem]="{ Name:'Select a District', PKID: null }"
+                                                [textField]="'Name'"
+                                                [valueField]="'PKID'"
+                                                [valuePrimitive]="true"
+                                                (valueChange)="districtChangeHandler($event)"
+                                                style="margin-bottom:10px;"
+                                                [readonly]="isBPEmployee">
+                            </kendo-dropdownlist>
+                        </div>
+
+                        <div class="col-3" *ngIf="isCheckedDivision == true">
+                            <label class="form-control-label" for="thana">Thana</label>
+                            <kendo-dropdownlist class="form-control form-control-sm input-sm"
+                                                id="thana"
+                                                [data]="thanaUser"
+                                                (valueChange)="ThanaChangeHandler($event)"
+                                                [(ngModel)]="thanaID"
+                                                [defaultItem]="{ Name: 'Select a Thana', PKID: null }"
+                                                [textField]="'Name'"
+                                                [valueField]="'PKID'"
+                                                [valuePrimitive]="true"
+                                                style="margin-bottom:10px;"
+                                                [readonly]="isBPEmployee">
+                            </kendo-dropdownlist>
+                        </div>
+
+                        <div class="col-3">
+                            <br />
+                            <kendo-slider [fixedTickWidth]="10" style="width:150px;margin-right:30px;margin-top:2px;"
+                                          [min]="25"
+                                          [max]="250"
+                                          [smallStep]="smallStep"
+                                          [(ngModel)]="scheduleWidth"></kendo-slider>
+                        </div>
+                        <div class="col-3">
+                            <br />
+                            <div class="row example-wrapper" style="width:100px; margin-right:30px;margin-top:2px;">
+                                <kendo-dropdownbutton style="margin-left:100px" [data]="settings" [textField]="'actionName'" [icon]="'gear'">
+                                    User Settings
+                                </kendo-dropdownbutton>
+                                <!--<kendo-dropdownbutton [icon]="'gear'">
+                                </kendo-dropdownbutton>-->
+                            </div>
+                        </div>
+
+
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-12">
+                    <div class="row col-12">
+                        <div class="form-group col-md-2">
+                            <label for="jobCode">Ticket No</label>
+                            <input type="text" class="form-control input-group-sm" id="jobCode" [(ngModel)]="jobCode">
+                        </div>
+                        <div class="form-group col-md-2">
+                            <label for="subscriberId">Sub ID</label>
+                            <input type="text" class="form-control input-group-sm" id="subscriberId" [(ngModel)]="subscriberId">
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="customerPhone">Customer RMN</label>
+                            <input type="text" class="form-control input-group-sm" id="customerPhone" [(ngModel)]="customerPhone">
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="stbNumber">STB Serial</label>
+                            <input type="text" class="form-control input-group-sm" id="stbNumber" [(ngModel)]="stbNumber">
+                        </div>
+                        <div class="form-group col-md-2">
+                            <label for="Status">Status </label>
+                            <kendo-dropdownlist class="form-control form-control-sm"
+                                                id="Status"
+                                                [data]="jobStatusList"
+                                                [textField]="'Description'"
+                                                [valueField]="'Value'"
+                                                [(ngModel)]="jobstatus"
+                                                [defaultItem]="{ Description: 'Select a status', Value: null }"
+                                                [valuePrimitive]="true">
+                            </kendo-dropdownlist>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-12">
+                    <div class="row col-12">
+
+                        <div class="col-8">
+                            <label class="form-control-label" for="Distributor">Distributor</label>
+                            <kendo-multiselect class="form-control form-control-sm" id="distributor"
+                                               [data]="distributors"
+                                               [(ngModel)]="selectedDistributorIds"
+                                               [textField]="'Name'"
+                                               [valueField]="'PKID'"
+                                               [placeholder]="'Please select distributor'"
+                                               (valueChange)="onDistributorChanged($event)"
+                                               [valuePrimitive]="true"
+                                               style="margin-bottom:10px;">
+                            </kendo-multiselect>
+                        </div>
+
+                        <div class="col-2">
+                            <label class="form-control-label" for="fromDate">Operation Date</label>
+                            <kendo-datepicker id="fromDate" class="form-control form-control-sm input-sm" [(ngModel)]="fromDate" [disabled]="true"
+                                              [format]="'dd MMM yyyy'">
+                            </kendo-datepicker>
+                        </div>
+
+                        <div class="col-md-1">
+                            <br />
+                            <br />
+                            <button class="btn btn-sm btn-primary" type="submit" (click)="search();"><i class="fa fa-search"></i> Search</button>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12" *ngIf="isAttendence == false && isJobStatus == false && isAttendenceSummary== false">
+                    <br />
+                    <div class="row">
+                        <label style="margin-left:15px;vertical-align:bottom;"><font [size]="'2pt'"><b>Calendar</b></font></label>
+                        <kendo-scheduler [kendoSchedulerBinding]="events"
+                                         [selectedDate]="selectedDate"
+                                         (dateChange)="onDateChange($event)"
+                                         [(group)]="group" [resources]="resources"
+                                         startTime="09:00" endTime="24:00"
+                                         [style.margin-left.px]="marginLeft"
+                                         [style.height.px]="height"
+                                         [style.font-size.px]="fontSize"
+                                         (click)="onClickEvent($event)"
+                                         [(selectedViewIndex)]="selectedViewIdx"
+                                         [loading]="IsKendoSchedulerLoading">
+                            <ng-template kendoSchedulerGroupHeaderTemplate let-resource="resource">
+                                <span>{{ resource.TeamName }}<br />{{ resource.TeamCode }}</span>
+                            </ng-template>
+                            <ng-template kendoSchedulerEventTemplate let-event="event">
+
+                                <div kendoTooltip [ngStyle]="getColor(event)">
+                                    <div [ngStyle]="getColor(event)" [title]="titleTemplate(event)">
+                                        {{ event.title }}
+                                    </div>
+                                </div>
+
+                            </ng-template>
+
+                            <kendo-scheduler-timeline-view [(columnWidth)]="scheduleWidth">
+                            </kendo-scheduler-timeline-view>
+
+                            <kendo-scheduler-week-view>
+                            </kendo-scheduler-week-view>
+
+                            <kendo-scheduler-work-week-view>
+                            </kendo-scheduler-work-week-view>
+                        </kendo-scheduler>
+                    </div>
+                </div>
+                <div class="col-md-12" *ngIf="isAttendence == true && isJobStatus == false && isAttendenceSummary == false">
+                    <br />
+                    <br />
+                    <div class="card">
+                        <br />
+                        <div class="row">
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <label class="form-control-label" for="jobInHand">Job In Hand</label>
+                                <input type="text" class="form-control input-group-sm" id="jobInHand" [(ngModel)]="jobInHand" readonly>
+                            </div>
+
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <label class="form-control-label" for="accepted">Accepted</label>
+                                <input type="text" class="form-control input-group-sm" id="accepted" [(ngModel)]="accepted" readonly>
+                            </div>
+
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <label class="form-control-label" for="rejected">Rejected</label>
+                                <input type="text" class="form-control input-group-sm" id="rejected" [(ngModel)]="rejected" readonly>
+                            </div>
+
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <label class="form-control-label" for="completed">Completed</label>
+                                <input type="text" class="form-control input-group-sm" id="completed" [(ngModel)]="completed" readonly>
+                            </div>
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <label class="form-control-label" for="rescheduled">Reschedule</label>
+                                <input type="text" class="form-control input-group-sm" id="rescheduled" [(ngModel)]="rescheduled" readonly>
+                            </div>
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <label class="form-control-label" for="unscheduled">UnSchedule</label>
+                                <input type="text" class="form-control input-group-sm" id="unscheduled" [(ngModel)]="unscheduled" readonly>
+                            </div>
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <label class="form-control-label" for="total">Total</label>
+                                <input type="text" class="form-control input-group-sm" id="total" [(ngModel)]="total" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <br />
+                        <br />
+                        <br />
+                        <label style="margin-left:15px;vertical-align:bottom;"><font [size]="'2pt'"><b>Team Attendance</b></font></label>
+                        <kendo-grid [data]="gridView2"
+                                    [selectable]="true"
+                                    [pageSize]="pageSize2"
+                                    (click)="onTeamAttendanceEvent($event)"
+                                    style="height: 310px; margin-left:15px; margin-right:15px;"
+                                    [skip]="skip2"
+                                    [pageable]="true"
+                                    (pageChange)="pageChange2($event)">
+                            <kendo-grid-column field="Name" title="Team" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="ThanaName" title="Thana" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="IsLogInStatus" title="Status" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="OperationTime" title="Log In Time" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="AssignedJob" title="Job In Hand" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="AcceptedJob" title="Accepted Job" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="CompletedJob" title="Completed Job" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="RejectedJob" title="Rejected Job" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="RescheduleJob" title="Reshcedule Job" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="UnscheduleJob" title="Unshcedule Job" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="CurrentDayJob" title="Current Day Job" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+
+                        </kendo-grid>
+                    </div>
+                </div>
+                <div class="col-md-12" *ngIf="isAttendence == false && isJobStatus == false  && isAttendenceSummary == true">
+                    <br />
+                    <br />
+                    <div class="card">
+                        <br />
+                        <div class="row">
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <label class="form-control-label" for="totalEmployee">Total Employee LogIn</label>
+                                <input type="text" class="form-control input-group-sm" id="totalEmployee" [(ngModel)]="totalEmployeeLogin" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <br />
+                        <br />
+                        <br />
+                        <label style="margin-left:15px;vertical-align:bottom;"><font [size]="'2pt'"><b>Team Attendance Summary</b></font></label>
+                        <kendo-grid [data]="distributorWiseEmployeeGridView"
+                                    [selectable]="true"
+                                    [pageSize]="pageSize5"
+                                    (click)="onTeamAttendanceEvent($event)"
+                                    style="height: 310px; margin-left:15px; margin-right:15px;"
+                                    [skip]="skip5"
+                                    [pageable]="true"
+                                    (pageChange)="pageChange5($event)">
+                            <kendo-grid-column field="DistributorName" title="Distributor" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="EmployeeStatusNumber" title="Employee LoggedIn Number" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="TotalInstaller" title="Total Installer" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                        </kendo-grid>
+                    </div>
+                </div>
+
+                <div class="col-md-12" *ngIf="isAttendence == false && isJobStatus == true">
+
+                    <div class="row">
+                        <br />
+                        <br />
+                        <br />
+                        <label style="margin-left:15px;vertical-align:bottom;"><font [size]="'2pt'"><b>Job Status Count</b></font></label>
+                        <kendo-grid [data]="gridViewJobStatus"
+                                    [selectable]="true"
+                                    [pageSize]="pageSizeJobStatus"
+                                    style="height: 310px; margin-left:15px; margin-right:15px;"
+                                    [skip]="skipJobStatus"
+                                    [rowClass]="rowCallback"
+                                    [pageable]="true"
+                                    (pageChange)="pageChangeJobStatus($event)">
+                            <kendo-grid-column field="StatusRemark" title="Status" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+                            <kendo-grid-column field="JobCount" title="Count" width="80"
+                                               [headerStyle]="{'font-size': '11px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                               [style]="{'font-size': '11px', 'text-align': 'left'}"></kendo-grid-column>
+
+                        </kendo-grid>
+                    </div>
+                </div>
+
+
+            </div>
+            <div class="row">
+                <br />
+                <br />
+                <div class="col-md-12" *ngIf="isGoogleMap == true  && isCancelJob == false && isFullCalender==false">
+                    <br>
+                    <br>
+                    <label style="vertical-align:bottom;"><font [size]="'2pt'"><b>Map</b></font></label>
+                    <div style="border:1px solid black;">
+
+                        <agm-map [latitude]="latitude" [longitude]="longitude" [zoom]="zoom" style="height:300px">
+                            <agm-marker *ngFor="let data of mapEmployees; let i = index" [latitude]="data.Latitude" [longitude]="data.Longitude"
+                                        (mouseOver)="onMouseOver(infoWindow, $event,data,i)"
+                                        (mouseOut)="onMouseOut(infoWindow, $event,data,i)"
+                                        [markerDraggable]="false" (dragEnd)="markerDragEnd($event)">
+
+                                <agm-info-window [disableAutoPan]="false" #infoWindow>
+
+                                    <div><strong>{{Team}}</strong></div>
+                                    <div><br></div>
+                                    <div><strong>{{Distributor}}</strong></div>
+                                    <div><br></div>
+                                    <div><strong>{{Thana}}</strong></div>
+
+                                </agm-info-window>
+                            </agm-marker>
+                            <br>
+                        </agm-map>
+
+                    </div>
+
+
+                </div>
+                <div class="col-md-12" *ngIf="isGoogleMap == false && isCancelJob == false && isFullCalender==false">
+                    <br />
+                    <br />
+                    <div class="card">
+                        <br />
+                        <div class="row">
+
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <button class="btn btn-sm btn-primary" [disabled] style="background-color: #32CD32; height:20px; width:30px; border-color: black;"></button>
+                                <label style="margin-left:14px;">Assinged</label>
+                            </div>
+
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <button class="btn btn-sm btn-primary" [disabled] style="background-color: #FFFF66; height:20px; width:30px; border-color: black;"></button>
+                                <label style="margin-left:14px;">Received</label>
+                            </div>
+
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <button class="btn btn-sm btn-primary" [disabled] style="background-color: #FF0000; height:20px; width:30px; border-color: black;"></button>
+                                <label style="margin-left:14px;">Rejected</label>
+                            </div>
+
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <button class="btn btn-sm btn-primary" [disabled] style="background-color: #808080; height:20px; width:30px; border-color: black;"></button>
+                                <label style="margin-left:14px;">Completed</label>
+                            </div>
+
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <button class="btn btn-sm btn-primary" [disabled] style="background-color: #FFA500; height:20px; width:30px; border-color: black;"></button>
+                                <label style="margin-left:14px;">Reschedule</label>
+                            </div>
+
+                        </div>
+
+                        <div class="row">
+
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <button class="btn btn-sm btn-primary" [disabled] style="background-color: #66CDAA; height:20px; width:30px; border-color: black;"></button>
+                                <label style="margin-left:14px;">Re-Assign</label>
+                            </div>
+
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <button class="btn btn-sm btn-primary" [disabled] style="background-color: #CD853F; height:20px; width:30px; border-color: black;"></button>
+                                <label style="margin-left:14px;">UnSchedule</label>
+                            </div>
+
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <button class="btn btn-sm btn-primary" [disabled] style="background-color: #F06292; height:20px; width:30px; border-color: black;"></button>
+                                <label style="margin-left:14px;">Open</label>
+                            </div>
+                            <div class="form-group col-md-2" style="margin-left:14px;">
+                                <button class="btn btn-sm btn-primary" [disabled] style="background-color: #3F51B5; height:20px; width:30px; border-color: black;"></button>
+                                <label style="margin-left:14px;">Cancel</label>
+                            </div>
+                          
+                        </div>
+                    </div>
+                    <div class="row">
+                        <br />
+                        <label style="margin-left:15px;vertical-align:bottom;"><font [size]="'2pt'"><b>Job Details</b></font></label>
+                        <div class="form-group">
+                            <kendo-grid [data]="gridView"
+                                        [selectable]="selectableSettings"
+                                        [pageSize]="pageSize"
+                                        [skip]="skip"
+                                        [pageable]="true"
+                                        (pageChange)="pageChange($event)"
+                                        [rowClass]="rowCallback"
+                                        (cellClick)="editClick($event,jobDetailsTemplate)"
+                                        [resizable]="true"
+                                        style="margin-left:15px;height:600px;margin-right:15px;">
+
+                                <kendo-grid-column field="JobTypeName" title="JobType" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+
+                                <kendo-grid-column field="JobCode" title="Ticket" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+                                <kendo-grid-column field="IssueDate" title="Creation Date" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}">
+                                    <ng-template kendoGridCellTemplate let-dataItem>
+                                        {{dataItem.IssueDate | date: 'dd MMM yyyy'}}
+                                    </ng-template>
+                                </kendo-grid-column>
+                                <kendo-grid-column field="CustomerName" title="Customer Name" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+                                <kendo-grid-column field="WFMSJobAddress" title="Customer Address" width="63"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+
+                                <kendo-grid-column field="SubscriberId" title="Sub ID" width="50"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+
+                                <kendo-grid-column field="CpeName" title="Product type" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+
+                                <kendo-grid-column field="TeamName" title="Installer Team" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}">
+
+                                </kendo-grid-column>
+                                <kendo-grid-column field="AssignedTimeCheck" title="Assigned Date" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}">
+                                    <ng-template kendoGridCellTemplate let-dataItem>
+                                        {{dataItem.AssignedTimeCheck | date: 'dd MMM yyyy'}}
+                                    </ng-template>
+                                </kendo-grid-column>
+                                <kendo-grid-column field="ScheduleTime" title="Schedule" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+                                <kendo-grid-column field="Remarks" title="Remarks" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+                                <kendo-grid-column field="AssignmentStatusString" title="Status" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>>
+                                <kendo-grid-column field="ReScheduleRemarks" title="Customer Remarks" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+
+                                <kendo-grid-command-column field="IsDepositDone"
+                                                           title="Assigned To"
+                                                           width="80"
+                                                           [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                           [style]="{'font-size': '10px', 'text-align': 'left'}">
+                                    <ng-template kendoGridCellTemplate let-dataItem>
+                                        <!--<button class="btn btn-sm btn-primary" style="padding: 0.2rem 0.5rem;" *ngIf="dataItem.Status==10||dataItem.Status==3||dataItem.Status==17||dataItem.Status==18||dataItem.Status==0 ||((dataItem.Status==1 || dataItem.Status==2)&& isSuperVisor==true)" (click)="onJobAssignmentClick(jobAssignentTemplate,dataItem.PKID,dataItem.JobTypeID, dataItem.DistributorID);"><i class="fa fa-pencil-square-o" aria-hidden="true"></i> Assign </button>-->
+                                        <button class="btn btn-sm btn-primary" style="padding: 0.2rem 0.5rem;" *ngIf="dataItem.Status==10||dataItem.Status==3||dataItem.Status==17||dataItem.Status==18||dataItem.Status==0 ||((dataItem.Status==1 || dataItem.Status==2)&& isEditable==true)" (click)="onJobAssignmentClick(jobAssignentTemplate,dataItem.PKID,dataItem.JobTypeID, dataItem.DistributorID,dataItem.Status);"><i class="fa fa-pencil-square-o" aria-hidden="true"></i> Assign </button>
+                                    </ng-template>
+                                </kendo-grid-command-column>
+                                <kendo-grid-command-column field="IsDepositDone"
+                                                           title="Re-Schedule"
+                                                           width="80"
+                                                           [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                           [style]="{'font-size': '10px', 'text-align': 'left'}">
+                                    <ng-template kendoGridCellTemplate let-dataItem>
+                                        <!--<button class="btn btn-sm btn-primary" style="padding: 0.2rem 0.5rem;" *ngIf="dataItem.Status==10||dataItem.Status==3||dataItem.Status==17||dataItem.Status==18||dataItem.Status==0 ||((dataItem.Status==1 || dataItem.Status==2)&& isSuperVisor==true)" (click)="onRescheduleTimeClick(rescheduleTimeTemplate,dataItem.PKID,dataItem);"><i class="fa fa-pencil-square-o" aria-hidden="true"></i> Reschedule </button>-->
+                                        <button class="btn btn-sm btn-primary" style="padding: 0.2rem 0.5rem;" *ngIf="dataItem.Status==10||dataItem.Status==3||dataItem.Status==17||dataItem.Status==18||dataItem.Status==0 ||((dataItem.Status==1 || dataItem.Status==2)&& isEditable==true)" (click)="onRescheduleTimeClick(rescheduleTimeTemplate,dataItem.PKID,dataItem);"><i class="fa fa-pencil-square-o" aria-hidden="true"></i> Reschedule </button>
+                                    </ng-template>
+                                </kendo-grid-command-column>
+
+                            </kendo-grid>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-12" *ngIf="isGoogleMap == false && isCancelJob == true && isFullCalender==false">
+                    <br />
+                    <br />
+                    <div class="row">
+                        <br />
+                        <br />
+
+                        <label style="margin-left:15px;vertical-align:bottom;"><font [size]="'2pt'"><b>Cancelled Jobs</b></font></label>
+
+
+                        <div class="form-group">
+                            <kendo-grid [data]="gridViewCancelJobs"
+                                        [selectable]="selectableSettings"
+                                        [pageSize]="pageSizeCJobs"
+                                        [skip]="skip4"
+                                        [pageable]="true"
+                                        [rowClass]="rowCallback"
+                                        (pageChange)="pageChange4($event)"
+                                        [resizable]="true"
+                                        style="margin-left:15px;height:600px;margin-right:15px;">
+
+                                <kendo-grid-column field="JobTypeName" title="JobType" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+
+                                <kendo-grid-column field="JobCode" title="Ticket" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+                                <kendo-grid-column field="IssueDate" title="Creation Date" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}">
+                                    <ng-template kendoGridCellTemplate let-dataItem>
+                                        {{dataItem.IssueDate | date: 'dd MMM yyyy'}}
+                                    </ng-template>
+                                </kendo-grid-column>
+                                <kendo-grid-column field="CustomerName" title="Customer Name" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+                                <kendo-grid-column field="WFMSJobAddress" title="Customer Address" width="63"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+
+                                <kendo-grid-column field="SubscriberId" title="Sub ID" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+
+                                <kendo-grid-column field="CancelTeamName" title="Installer Team" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}">
+
+                                </kendo-grid-column>
+                                <kendo-grid-column field="AssignedTimeCheck" title="Schedule Date" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}">
+                                    <ng-template kendoGridCellTemplate let-dataItem>
+                                        {{dataItem.AssignedTimeCheck | date: 'dd MMM yyyy'}}
+                                    </ng-template>
+                                </kendo-grid-column>
+                                <kendo-grid-column field="ScheduleTime" title="Schedule Time" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+                                <kendo-grid-column field="CancelRemarks" title="Remarks" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>
+                                <kendo-grid-column field="AssignmentStatusString" title="Status" width="60"
+                                                   [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                   [style]="{'font-size': '10px', 'text-align': 'left'}"></kendo-grid-column>>
+
+                                <!--<kendo-grid-command-column field="IsDepositDone"
+                                                           title="Assigned To"
+                                                           width="60"
+                                                           [headerStyle]="{'font-size': '10px', 'white-space': 'normal', 'text-align': 'center', 'vertical-align': 'middle'}"
+                                                           [style]="{'font-size': '10px', 'text-align': 'left'}">
+                                    <ng-template kendoGridCellTemplate let-dataItem>
+                                        <button class="btn btn-sm btn-primary" style="padding: 0.2rem 0.5rem;" *ngIf="dataItem.Status==10||dataItem.Status==3||dataItem.Status==17||dataItem.Status==18||dataItem.Status==0" (click)="onJobAssignmentClick(jobAssignentTemplate,dataItem.PKID,dataItem.JobTypeID, dataItem.DistributorID);"><i class="fa fa-pencil-square-o" aria-hidden="true"></i> Assign </button>
+                                    </ng-template>
+                                </kendo-grid-command-column>-->
+
+                            </kendo-grid>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="row">
+                <br />
+            </div>
+            <div class="row">
+                <div class="col-md-5">
+                    <div class="row">
+                        <br />
+                        <br />
+                        <br />
+                    </div>
+
+                </div>
+                <div class="row">
+                    <br />
+                </div>
+                <div class="row">
+                    <br />
+                </div>
+                <div class="row">
+                    <div>
+                        <br>
+                        <br>
+                        <br>
+                        <br>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<ng-template #jobAssignentTemplate>
+    <app-job-assignment></app-job-assignment>
+</ng-template>
+
+
+<ng-template #jobDetailsTemplate>
+    <app-job-details></app-job-details>
+</ng-template>
+
+<ng-template #rescheduleTimeTemplate>
+    <app-reschedule-time></app-reschedule-time>
+</ng-template>
+
+<ng-template #reportModal>
+    <div style="margin:15px;">
+        <i class="fa fa-window-close pull-right inline-header text-danger" aria-hidden="true" (click)="bsModalRef.hide()"></i>
+        <br /><br /><br />
+        <div class="modal-body" style="min-height:85vh;">
+            <report-viewer [reportDefinition]="definition"
+                           [reportParameters]="parameters">
+            </report-viewer>
+        </div>
+    </div>
+</ng-template>

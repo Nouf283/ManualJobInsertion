@@ -1,0 +1,27 @@
+SELECT j.JobCode TicketNo,j.SubscriberId SUBID,j.CreatedDate,j.CustomerName,j.CustomerPhone CustomerRMN,
+CustomerAddress=j.Landmark+' '+j.RoadNo+' '+j.HouseNo,j.STBnumber STBSerialNo,
+Case j.Status
+  WHEN 1 THEN 'Assinged'
+  WHEN 2 THEN 'Received'
+  WHEN 3 THEN 'Rejected'
+  WHEN 4 THEN 'Completed'
+  WHEN 17 THEN 'Re-Assign'
+  WHEN 18 THEN 'UnSchedule'
+  END JobStatus,
+JobCompletionTime=(select ja.StatusTime from JobAssignment ja where j.JobID=ja.JobID and j.Status=4),
+bp2.Name sellingDistributorName,bp.Name InstallingDistributorName,e.Name InstallerName,e.MobileNo InstallerMobileNo,T1.Region
+FROM Job j
+   LEFT JOIN JobAssignment ja ON ja.JobID=j.JobID
+   LEFT JOIN Employees e ON e.EmployeeID=ja.AssignedFFID and e.EmployeeType=6
+   LEFT JOIN salesInvoice si ON j.ReferenceID=si.InvoiceID
+   LEFT JOIN BusinessPartner bp ON bp.BPID=j.DistributorID and bp.Category=12
+   LEFT JOIN businesspartner AS bp1 ON si.ShowroomID = bp1.bpid and bp1.Category=8
+   LEFT JOIN businesspartner AS bp2 ON bp2.BPID = bp1.ParentID and bp2.Category=12
+   LEFT JOIN (
+   SELECT mhn.MarketHierarchyID, mhn.Name,mhn1.Name area,mhn2.Name Region 
+   FROM MarketHierarchyNode mhn 
+   LEFT JOIN MarketHierarchyNode mhn1 ON mhn1.MarketHierarchyID=mhn.ParentID and mhn1.LevelNo=2
+   LEFT JOIN MarketHierarchyNode mhn2 ON mhn2.MarketHierarchyID=mhn1.ParentID and mhn2.LevelNo=1
+   )T1 ON T1.MarketHierarchyID=bp.MarketHierarchyID
+WHERE j.JobTypeID in (1,2) and j.SubscriberId <> '' and j.SubscriberId is NOT NULL AND T1.Region is not null
+AND Cast(ja.StatusTime as Date)=Cast('14 jan 2020' as Date) and j.Status=4

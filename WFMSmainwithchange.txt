@@ -1,0 +1,2639 @@
+import { Component, OnInit, TemplateRef, ViewChild, ElementRef, NgZone, ViewEncapsulation } from '@angular/core';
+// import 'rxjs/Rx';
+import { Observable, Subscription, interval } from 'rxjs';
+import { Unsubscriber } from '../../unsubscriber';
+import { ApiService, PubSubService } from '../../app.api.service';
+import { Job, JobAssignment, JobStatusChange, JobStatusCount } from '../job-tracker/Job';
+import { FieldForceActivitySummary } from '../basic.classes/employee';
+import { State, process } from '@progress/kendo-data-query';
+import { FormBuilder, FormGroup, Validators, NgForm, FormControl } from '@angular/forms';
+import { Employee } from '../basic.classes/employee';
+import { NotificationService } from '../../app.notification.service';
+import { RowArgs, GridDataResult, PageChangeEvent, SelectableSettings } from '@progress/kendo-angular-grid';
+import { AuthService } from '../authentication/auth.service';
+import { CurrentUser, MenuPermission } from '../authentication/currentuser';
+import { EnumJobAssignmentStatus, EnumJobType, EnumJobStatus, WFMSSearchModeEnum } from '../../enum';
+import { JobDBRow, JobDBcel, JobDBColumn, AssingedJob } from './wfms';
+import { DatePipe } from '@angular/common';
+import { BusinessPartner } from '../basic.classes/businessPartner';
+import { BasicDataService } from '../../basicdata.service';
+import { IEnum, EmployeeTypeEnum, EnumExtension, WeeklyHolidayEnum } from '../../enum';
+import { Router, ActivatedRoute } from '@angular/router';
+import { Employees, Address, EmployeeJobCount, EmployeeAttendanceSummary, TeamAttendanceSummary } from '../dsr/dsr';
+import { DataTransferService } from '../../data.transfer.service';
+import { SchedulerEvent, SchedulerComponent, DateChangeEvent } from '@progress/kendo-angular-scheduler';
+import { Helper } from '../basic.classes/helper';
+import { BsModalService, BsModalRef } from 'ngx-bootstrap/modal';
+import { RowClassArgs } from '@progress/kendo-angular-grid';
+import { MapsAPILoader, MouseEvent } from '@agm/core';
+import { MarketHierarchyViewModel } from '../basic.classes/market-hierarchy';
+import { District } from '../basic.classes/district';
+import { Thana } from '../basic.classes/thana';
+import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
+import { Area } from '../installation-coverage-area/area';
+import { WebMenuGroup } from '../basic.classes/webMenu';
+
+@Component({
+    selector: 'app-wfms-dashboard-new',
+    templateUrl: './wfms-dashboard-new.component.html',
+    encapsulation: ViewEncapsulation.None,
+    styles: [`
+      .k-grid .no-padding {
+        padding: 0;
+      }
+       .whole-cell {
+         display: block;
+         width: 80px;
+         height: 80px;
+         padding: 5px;
+         border: 1px solid white;    
+       }
+        .k-grid tr.yellow { background-color: #FFEB3B;}
+        .k-grid tr.red { background-color: #F44336;}
+        .k-grid tr.grey { background-color: #9e9e9e;}
+        .k-grid tr.pink { background-color: #F06292;}
+        .k-grid tr.orange { background-color: #ff9800;}
+        .k-grid tr.violet { background-color: #7f00ff;}
+        .k-grid tr.cyan { background-color: #00bcd4;}
+        .k-grid tr.brown { background-color: #RRGGBB;}
+        .k-grid tr.blue { background-color: #0000FF;}
+        .k-grid tr.indigo { background-color: #3F51B5;}
+   `]
+
+})
+@Unsubscriber()
+export class wfmsDashboardNewComponent implements OnInit {
+
+    public _getBusinessPartnerSubscriber$: Subscription;
+    public _getThanaSubscriber$: Subscription;
+    public _getBusinessPartnerLocationSubscriber$: Subscription;
+    public _getDistrictSubscriber$: Subscription;
+    public _checkDistributorEmployeeSubscriber$: Subscription;
+    public _getTeams: Subscription;
+    public _getDistributorEmployeeMarket: Subscription;
+    public _getDistributorWiseEmployeeCount: Subscription;
+
+    public selectedDate: Date = new Date(Date.now());
+    public events: SchedulerEvent[] = [];
+    public event: SchedulerEvent[] = [];
+    public IsKendoSchedulerLoading = false;
+    public uniqueName: string;
+
+    subscribers: any = {};
+    public _intervalSubscribers$: Subscription;
+    public _initJobSubscribers$: Subscription;
+    public _getTotalJobCountSubscribers$: Subscription;
+    public _getallJobs: Subscription;
+    public _getvariousJobs: Subscription;
+    public _getJobCounts: Subscription;
+    public _getRegionJobs: Subscription;
+    public _initEmployeeSubscribers$: Subscription;
+    public _saveJobSubscribers$: Subscription;
+    public _initJobTypeSubscribers$: Subscription;
+    public _getJobInstallers: Subscription;
+    public _initRegionForLoginBasedMarket: Subscription;
+    public _getDistributorsByRegion: Subscription;
+    public _getDistributorsByRegions: Subscription;
+    public _getButtonLevelPermissionSubscriber$: Subscription;
+
+    public _getCsvSubscriber$: Subscription;
+    public _getRegionsSubscriber$: Subscription;
+    public selectableSettings: SelectableSettings;
+    jobAssignForm: FormGroup;
+    public employees$: Employee[];
+    taggedSelection: number[] = [];
+    public jobStatusChange: JobStatusChange;
+    public selectedEnumJobType: EnumJobType;
+    public contentType: string;
+    public selectedViewIdx: number = 0;
+    public title: string;
+    public Distributor: string;
+    public Thana: string;
+    public Team: string;
+    public districtID: number;
+    public thanaID: number;
+    public isBPEmployee: boolean = false;
+    icon: string = "fa fa-angle-down";
+    public BpLocations: Area[] = [];
+
+    assignedDate: Date = new Date();
+    public checked = false;
+    public isAssignHidden = false;
+    public isUnassignHidden = true;
+    public isRejectHidden = true;
+
+    dateFormat: object = { year: 'numeric', month: 'short', day: 'numeric' };
+    public iJobs: Job[];
+    public iVariousJobs: Job[];
+    public iJobsTemp: Job[];
+    public iJobsOtherTemp: Job[];
+    public iCancelJobs: Job[];
+    public iJobs2: Job[] = [];
+    public iJobStatus: JobStatusCount[] = [];
+    public gridView: GridDataResult;
+    public gridView1: GridDataResult;
+    public gridViewCancelJobs: GridDataResult;
+    public pageSize = 10;
+    public pageSize2 = 10;
+    public pageSize5 = 10;
+    public skip = 0;
+    public pageSize3 = 10;
+    public pageSizeJobStatus = 10;
+    public skip3 = 0;
+    public skipJobStatus = 0;
+    public gridView3: GridDataResult;
+    public gridViewJobStatus: GridDataResult;
+    public gridView2: GridDataResult;
+    public distributorWiseEmployeeGridView: GridDataResult;
+    public pageSize1 = 5;
+    public pageSizeCJobs = 5;
+    public skip1 = 0;
+    public skip2 = 0;
+    public skip4 = 0;
+    public skip5 = 0;
+    public _currentUser: CurrentUser;
+    public _menuPermission: MenuPermission;
+    public jobIds: string;
+    public isPickup = false;
+    public _rows: JobDBRow[] = [];
+    public _cels: JobDBcel[] = [];
+    public _columns: JobDBColumn[] = [];
+    public distributors: BusinessPartner[];
+    public _getJobStatusSubscriber$: Subscription;
+    public _menuList: WebMenuGroup[];
+
+    public initThanadistributors: BusinessPartner[] = [];
+    public initdistributors: BusinessPartner[];
+    public _distributors: BusinessPartner[];
+    public _thanadistributors: BusinessPartner[];
+    public _assingedJobs: AssingedJob[] = [];
+    public assignjob: AssingedJob;
+    public _teams: Employees[];
+    public _teamEmployees: Employees[];
+    public DistributorID: number;
+    public DateOne: String;
+    public DateTwo: string;
+    public StartDate: String;
+    public EndDate: string;
+    public MsgBoard: string;
+    definition: string;
+    showReportViewer: boolean;
+    parameters: any;
+    public bsModalRef: BsModalRef;
+    distributorID: number;
+    divisionID: number
+    public fromDate: Date;
+    public toDate: Date;
+    public jobCode: string;
+    public subscriberId: string;
+    public customerPhone: string;
+    public totalEmployeeLogin: number;
+    public stbNumber: string;
+    public employees: Employees[];
+    public employeeJobcount: EmployeeJobCount[];
+    public TeamAttendanceSummary: TeamAttendanceSummary;
+    public employeeAttendanceSummary: EmployeeAttendanceSummary[] = [];
+    public mapEmployees: Employees[];
+    public scheduleWidth: number = 10;
+    public settings: any = [];
+    public settingsName: any;
+    WFMSSearchModeEnum: any = WFMSSearchModeEnum;
+    public selectedDistributorIds: number[] = [];
+    public initDistributorIds: number[] = [];
+    public selectedDistributorAll: number[];
+    public marketHierarchies: MarketHierarchyViewModel[] = [];
+    public distributorEmployeemarket: MarketHierarchyViewModel[] = [];
+    public regions: MarketHierarchyViewModel[] = [];
+    public region: MarketHierarchyViewModel;
+    public areas: MarketHierarchyViewModel[] = [];
+    public businessPartner: BusinessPartner;
+    public distributorEmployeeBP: BusinessPartner;
+    public distributorEmployees: BusinessPartner[] = [];
+
+    //Slider
+    public valueHorizontal: number = 5;
+    public regionID: number = 0;
+    public areaID: number = 0;
+    public min: number = 0;
+    public max: number = 15;
+    public smallStep: number = 10;
+    public selectedRegionArea: number[] = [];
+    public userBasedRegionArea: number[] = [];
+
+    public districts: District[] = [];
+    public district: District;
+    public districtUser: District[] = [];
+    public thanas: Thana[];
+    public thanaUser: Thana[] = [];
+    public thana: Thana;
+    public distributorUser: BusinessPartner[];
+    public jobStatusList: IEnum[];
+    public jobstatus: EnumJobStatus;
+
+    public isAttendence: boolean = false;
+    public isTeamAttendencePageEvent: boolean = false;
+    public isGoogleMap: boolean = false;
+    public isCancelJob: boolean = false;
+    public isVariousJobs: boolean = false;
+    public isJobStatus: boolean = false;
+    public isFullCalender: boolean = false;
+    public isSuperVisor: boolean = true;
+    public isEditable: boolean = true;
+    public marginLeft: number = 10;
+    public height: number = 310;
+    public fontSize: number = 10;
+    public jobInHand: string;
+    public accepted: string;
+    public rejected: string;
+    public completed: string;
+    public rescheduled: string;
+    public unscheduled: string;
+    public total: string;
+    //GOOGLE MAP
+    // title: string = 'AGM project';
+    latitude: number;
+    longitude: number;
+    public zoom: number = 10;
+    address: string;
+    private geoCoder;
+    public searchElementRef: ElementRef;
+    public radioButtonValue: string = 'region';
+
+    public ischeckedRegion: boolean = true;
+    public isCheckedDivision: boolean = false;
+    public isAttendenceSummary: boolean = false;
+
+
+    //public radioRegionValue: boolean = false;
+    //public radioDivisionValue: boolean = true;
+
+
+    public SearchType: any = [
+        { label: 'region', value: '1', checked: true },
+        { label: 'division', value: '2', checked: false }];
+
+    public config = {
+        animated: true,
+        keyboard: true,
+        backdrop: true,
+        ignoreBackdropClick: true
+    };
+
+    public group: any = {
+        resources: ['Teams'],
+        //resources: 'Teams',
+        orientation: 'vertical'
+    };
+
+    public resources: any[] = [{
+        name: 'Teams',
+        data: [{ TeamName: '', TeamCode: '', TeamID: 0, color: '', status: 0 }],
+        field: 'TeamID',
+        valueField: 'TeamID',
+        textField: 'TeamName',
+        textField1: 'TeamCode',
+        colorField: 'color'
+    }];
+
+    //public list: any[] = [
+
+    //    { latitude: 23.746466, longitude: 90.376015,id:1 },
+    //    { latitude: 23.876263, longitude: 90.379631,id:2 },
+    //    { latitude: 23.797911, longitude: 90.414391,id:3 },
+
+
+    //];
+
+    public fieldForceActivitySummaries: FieldForceActivitySummary[];
+
+    constructor(public basicDataService: BasicDataService, public notificationService: NotificationService,
+        public formBuilder: FormBuilder,
+        public apiService: ApiService,
+        public _auth: AuthService,
+        public _pubSubService: PubSubService,
+        public modalService: BsModalService,
+        public _dataTransferService: DataTransferService,
+        public datepipe: DatePipe, public router: Router,
+        private mapsAPILoader: MapsAPILoader,
+        private ngZone: NgZone,
+        private sanitizer: DomSanitizer) {
+        this._currentUser = _auth.getCurrentUser();
+        this._menuList = _auth.getMenuList();
+        this.createJobAssignForm();
+    }
+
+    ngOnInit() {
+        this.TeamAttendanceSummary = new TeamAttendanceSummary();
+        this.initEnum();
+        this.fromDate = new Date();
+        this.toDate = new Date();
+        this.distributorEmployeeBP = new BusinessPartner();
+        this._getBusinessPartnerSubscriber$
+            = this.subscribers.getBusinessPartners
+            = this.basicDataService.getBusinessPartners(12) // for distributor
+                .subscribe(x => this._distributors = ((x) as any),
+                    (e) => {
+                        this.notificationService.showError(e);
+                    },
+                    () => {
+
+                    });
+
+        this._checkDistributorEmployeeSubscriber$ = null;
+        this.subscribers.checkDistributorEmployee
+            = this._checkDistributorEmployeeSubscriber$
+            = this.apiService.httpGet<BusinessPartner>('BusinessPartner/GetDistributorEmployeeAndDistributor' + '/' + this._currentUser.PKID)
+                .subscribe(
+                    (x) => { this.distributorEmployeeBP = ((x) as any) },
+                    (e) => {
+                        // Error
+                        this.notificationService.showError(e);
+                    }, () => {
+
+                        if (this.distributorEmployeeBP != undefined || this.distributorEmployeeBP != null) {
+                            this.selectedDistributorIds = [];
+                            if (this.distributorEmployeeBP.EmployeeTypeID == 10) {
+                                this.isSuperVisor = false;
+                                this.distributorEmployees.push(this.distributorEmployeeBP);
+                            }
+                            //if (this._distributors.length > 0) {
+                            //    this.getDistributorEmployeeInitialDistributor();
+                            //}
+                            this.distributorEmployeeRegionLoad();
+                            this.isBPEmployee = true;
+
+                            //this.subscribers = this.apiService.httpGet<MarketHierarchyViewModel[]>('MarketHierarchy/GetDistributorEmployeeMarket' + '/' + this._currentUser.PKID)
+                            //    .subscribe(
+                            //        (x) => { this.distributorEmployeemarket = ((x) as any) },
+                            //        (e) => {
+                            //            // Error
+                            //            this.notificationService.showError(e);
+                            //        }, () => {
+
+                            //            this.regions = this.distributorEmployeemarket.filter(x => x.LevelNo == 1);
+                            //            this.initDistributorEmployee();
+
+                            //        });
+
+                        } else {
+                            this.initRegion();
+                            this.getDistrict();
+                            this.getBPLocation();
+                        }
+
+                    });
+
+
+        const today = new Date();
+        const UpTo = new Date();
+        UpTo.setDate(today.getDate() + 1);
+        let firstdate = '';
+        let secondDate = '';
+        firstdate = today.toLocaleString('en-US', this.dateFormat);
+        secondDate = UpTo.toLocaleString('en-US', this.dateFormat);
+
+        //const intervalTime = interval(10000);
+        //this._intervalSubscribers$ = intervalTime.subscribe(val => this.serachAuto());
+        this.loadGoogleMap();
+        this.setCurrentLocation();
+
+        this.settings = [{
+            actionName: 'Installer Attendence',
+
+            click: (dataItem) => {
+                this.isAttendence = true;
+                this.isAttendenceSummary = false;
+                this.isJobStatus = false;
+                this.isFullCalender = false;
+                this.height = 350;
+                // console.log(`${dataItem.actionName}ing last action.`);
+            }
+        }, {
+            actionName: 'Google Map',
+            click: (dataItem) => {
+                this.isGoogleMap = true;
+                this.isCancelJob = false;
+                this.isFullCalender = false;
+                this.height = 350;
+            }
+        }, {
+            actionName: 'Job Details',
+            click: (dataItem) => {
+                this.isGoogleMap = false;
+                this.isCancelJob = false;
+                this.isFullCalender = false;
+                this.height = 350;
+            },
+        },
+        {
+            actionName: 'Calendar',
+            click: (dataItem) => {
+                this.isAttendence = false;
+                this.isAttendenceSummary = false;
+                this.isJobStatus = false;
+                this.isFullCalender = false;
+                this.height = 350;
+            }
+        },
+        {
+            actionName: 'Various Job Status',
+            click: (dataItem) => {
+                // this.ngOnDestroy();
+                this.router.navigateByUrl('/wfms/VariousStatusList');
+            }
+        },
+        {
+            actionName: 'Cancelled Jobs',
+            click: (dataItem) => {
+                this.isGoogleMap = false;
+                this.isCancelJob = true;
+                this.isFullCalender = false;
+                this.height = 350;
+                this.cancelJobsLoad();
+            }
+        },
+            {
+                actionName: 'Job Status Count',
+                click: (dataItem) => {
+                    this.isAttendence = false;
+                    this.isAttendenceSummary = false;
+                    this.isJobStatus = true;
+                    this.isFullCalender = false;
+                    this.height = 350;
+                    this.jobStatusCount();
+                }
+            }
+        //},
+        //{
+        //    actionName: 'Reassign Wrong Location',
+        //    click: (dataItem) => {
+        //        this.router.navigateByUrl('/wfms/WFMSJobDetails');
+        //    }
+        //}
+        ];
+    }
+
+    public cancelJobsLoad() {
+        if (this.iJobsOtherTemp.length > 0) {
+             this.iCancelJobs = this.iJobsOtherTemp.filter(x => x.Status == EnumJobStatus.Cancel);
+             this.loadCancelGrid();
+        }
+       
+    }
+
+    public distributorEmployeeRegionLoad() {
+
+        //if (this.distributorEmployeeBP.EmployeeTypeID == 10) {
+        //    this.distributorEmployees.push(this.distributorEmployeeBP);
+        //}
+
+        this._getDistributorEmployeeMarket =
+            this.subscribers = this.apiService.httpGet<MarketHierarchyViewModel[]>('MarketHierarchy/GetDistributorEmployeeMarket' + '/' + this._currentUser.PKID)
+                .subscribe(
+                    (x) => { this.distributorEmployeemarket = ((x) as any) },
+                    (e) => {
+                        // Error
+                        this.notificationService.showError(e);
+                    }, () => {
+
+                        this.regions = this.distributorEmployeemarket.filter(x => x.LevelNo == 1);
+                        this.initDistributorEmployee();
+
+                    });
+
+    }
+
+    public initEnum(): void {
+
+        this.subscribers.getJobStatusEnum
+        this._getJobStatusSubscriber$
+            = this.apiService.httpGet<IEnum[]>('Enum/GetEnumValue/EnumJobStatus')
+                .subscribe(
+                    (x) => { this.jobStatusList = x; },
+                    (e) => { this.notificationService.showError(e); },
+                    () => {
+                        this.jobStatusList = this.jobStatusList
+                            .filter((x) => x.Value == EnumJobStatus.Open
+                                || x.Value == EnumJobStatus.Assinged
+                                || x.Value == EnumJobStatus.Received
+                                || x.Value == EnumJobStatus.Rejected
+                                || x.Value == EnumJobStatus.Completed
+                                || x.Value == EnumJobStatus.Reschedule
+                                || x.Value == EnumJobStatus.UnSchedule
+                                || x.Value == EnumJobStatus.Request_Re_Assign);
+                    });
+
+    }
+
+    somethingChanged(val: boolean, val2: boolean) {
+        this.ischeckedRegion = val;
+        this.isCheckedDivision = val2;
+        this.distributors = [];
+        this.selectedDistributorIds = [];
+        this.selectedRegionArea = [];
+
+
+        this.employees = [];
+        this.loadEmployeeGrid();
+        this.iJobsTemp = [];
+        this.loadGrid();
+        this.iCancelJobs = [];
+        this.loadCancelGrid();
+        this.selectedDistributorIds = [];
+        this.events = [];
+        this.resources[0].data = [];
+
+        if (this.ischeckedRegion == true) {
+            if (this.distributorEmployeeBP != undefined) {
+                this.distributorEmployeeRegionLoad();
+            } else {
+                this.initRegion();
+            }
+
+
+        }
+
+        if (this.isCheckedDivision == true) {
+            if (this.distributorEmployeeBP != undefined || this.distributorEmployeeBP != null) {
+                this.isBPEmployee = true;
+                if (this._distributors.length > 0) {
+                    this.getDistributorEmployeeInitialDistributor();
+                }
+
+            }
+            else {
+                this.isBPEmployee = false;
+                this.getBPLocationInitialDistributor();
+            }
+
+        }
+    }
+
+    getDistrict() {
+        this.subscribers.getdistricts
+            = this._getDistrictSubscriber$
+            = this.basicDataService.getDistricts()          // for district
+                .subscribe(x => this.districts = ((x) as any));
+
+    }
+
+    getThana() {
+        if (this.districtID > 0) {
+            this.subscribers.getthanas
+                = this._getThanaSubscriber$
+                = this.apiService.httpGet<Thana[]>('Thana/get-thanas/' + this.districtID)         // for district
+                    .subscribe(
+
+                        (x) => { x => this.thanas = x; },
+                        (e) => { this.notificationService.showError(e); },
+                        () => {
+                            this.sort(this.thanas);
+                        });
+        }
+
+    }
+
+    public getButtonLevelPermission(): void {
+
+        this._menuList.forEach(x => {
+            if (x.children != undefined && x.children.find(y => y.url == this.router.url)) {
+                this.uniqueName = x.children.find(y => y.url == this.router.url).uniqueName;
+            }
+        });
+
+        let data = {
+            userId: this._currentUser.PKID,
+            moduleID: this.uniqueName
+        };
+
+        this._getButtonLevelPermissionSubscriber$
+            = this.apiService.httpPost('User/get-button-level-permission/', data)
+                .subscribe(
+                    (x) => { this._menuPermission = x as any },
+                    (e) => { this.notificationService.showError(e); },
+                    () => {
+                        if (this._menuPermission.AllowEdit || this._menuPermission.AllowDelete)
+                            this.isEditable = true;
+                    });
+
+    }
+
+    getBPLocation() {
+        this.subscribers.getLocation
+            = this._getBusinessPartnerLocationSubscriber$
+            = this.apiService.httpGet<Area[]>('BPLocation/GetDistributorsByDistrictOrThana/' + this._currentUser.PKID)
+                .subscribe(
+                    (x) => { this.BpLocations = x; },
+                    (e) => { this.notificationService.showError(e); },
+                    () => {
+
+                        if (this.BpLocations.length > 0) {
+                            this.BpLocations.forEach(x => {
+
+                                this.districts.forEach(item => {
+                                    if (item.PKID == x.districtID) {
+                                        let districtExist = this.districtUser.find(x => x.PKID == item.PKID);
+                                        if (!districtExist) {
+                                            var district = new District();
+                                            district.Name = item.Name;
+                                            district.PKID = item.PKID;
+                                            this.districtUser.push(district);
+                                        }
+                                    }
+
+                                })
+
+                            })
+                            this.sort(this.districtUser);
+                        }
+
+
+
+                    });
+
+    }
+
+    public sort(list: any) {
+
+        list.sort(function (a, b) {
+            var nameA = a.Name.toLowerCase(), nameB = b.Name.toLowerCase()
+            if (nameA < nameB) //sort string ascending
+                return -1
+            if (nameA > nameB)
+                return 1
+            return 0 //default return value (no sorting)
+        })
+
+    }
+
+
+
+    getBPLocationInitialDistributor() {
+        this.initThanadistributors = [];
+        this.distributors = [];
+        if (this.BpLocations.length > 0) {
+
+
+            this.BpLocations.forEach(x => {
+
+                this._distributors.forEach(item => {
+                    if (item.PKID == x.distributorID) {
+                        let distributorExist = this.initThanadistributors.find(y => y.PKID == x.distributorID);
+                        if (!distributorExist) {
+                            var businessPartner = new BusinessPartner();
+                            businessPartner.Name = item.Name;
+                            businessPartner.PKID = item.PKID;
+                            this.initThanadistributors.push(businessPartner);
+                        }
+                    }
+
+                })
+            })
+            this.distributors = this.initThanadistributors;
+            this.selectedDistributorIds = [];
+            //   this.initGetDistributorCompleted(this.initThanadistributors);
+            if (this.initThanadistributors != undefined) {
+                this.initThanadistributors.forEach(x => {
+                    if (x.PKID != undefined) {
+                        this.selectedDistributorIds.push(x.PKID)
+                    }
+
+                })
+
+                let selectedID = this.selectedDistributorIds.join();
+
+                let data = {
+                    distributorIDs: selectedID,
+                    enumText: EmployeeTypeEnum.InstallationTeam
+                };
+
+
+                this.employees = [];
+                this.mapEmployees = [];
+
+                this.subscribers.getEmployees =
+                    this.apiService.httpPost('Employee/GetJobInstalLers', data)
+                        .subscribe(
+                            (x) => { this.employees = ((x) as any) },
+                            (e) => { this.notificationService.showError(e); },
+                            () => {
+                                // this.mapEmployees = this.employees.filter(x => x.Latitude > 0 && x.Longitude > 0);
+                                this.loadTotalJobcount(data);
+                            });
+            }
+        }
+
+    }
+
+
+    getDistributorEmployeeInitialDistributor() {
+        this.initThanadistributors = [];
+        this.distributors = [];
+
+        this._distributors.forEach(item => {
+            if (item.PKID == this.distributorEmployeeBP.PKID) {
+                var businessPartner = new BusinessPartner();
+                businessPartner.Name = item.Name;
+                businessPartner.PKID = item.PKID;
+                this.initThanadistributors.push(businessPartner);
+            }
+
+        })
+
+        this.distributors = this.initThanadistributors;
+        this.selectedDistributorIds = [];
+        //   this.initGetDistributorCompleted(this.initThanadistributors);
+        if (this.initThanadistributors != undefined) {
+            this.initThanadistributors.forEach(x => {
+                if (x.PKID != undefined) {
+                    this.selectedDistributorIds.push(x.PKID)
+                }
+
+            })
+
+            let selectedID = this.selectedDistributorIds.join();
+
+            let data = {
+                distributorIDs: selectedID,
+                enumText: EmployeeTypeEnum.InstallationTeam
+            };
+
+
+            this.employees = [];
+            this.mapEmployees = [];
+
+            this.subscribers.getEmployees =
+                this.apiService.httpPost('Employee/GetJobInstalLers', data)
+                    .subscribe(
+                        (x) => { this.employees = ((x) as any) },
+                        (e) => { this.notificationService.showError(e); },
+                        () => {
+                            this.mapEmployees = this.employees.filter(x => x.Latitude > 0 && x.Longitude > 0);
+                            this.loadEmployeeGrid();
+                        });
+
+        }
+    }
+
+    public onSearchTypeChange(): void {
+
+        //if ((this.consignmentForm.get("SenderBillPaymentType").value) == PaymentModeEnum.Credit.toString() &&
+        //    (<EnumConsignmentBilledBy>this.consignmentForm.get("BilledBy").value) == EnumConsignmentBilledBy.Conditional) {
+        //    this.isSenderFromAddressBook = true;
+        //    this.onSenderSelectionChange();
+        //    this.consignmentForm.get("SenderAddressBookSelect").disable();
+        //}
+        //else {
+        //    this.consignmentForm.get("SenderAddressBookSelect").enable();
+        //}
+        //this.consignmentForm.get("SenderAddressBookSelect").updateValueAndValidity();
+    }
+
+    //public initRegion(): void {
+
+    //    this.subscribers = this.apiService.httpGet<MarketHierarchyViewModel[]>('MarketHierarchy/GetAllMarketHierarchy')
+    //        .subscribe(
+    //            (x) => { this.marketHierarchies = ((x) as any) },
+    //            (e) => {
+    //                // Error
+    //                this.notificationService.showError(e);
+    //            }, () => {
+
+    //                this.regions = this.marketHierarchies.filter(x => x.LevelNo == 1);
+
+    //            });
+    //}
+
+
+
+    public initRegion(): void {
+
+        this._initRegionForLoginBasedMarket =
+            this.subscribers = this.apiService.httpGet<MarketHierarchyViewModel[]>('MarketHierarchy/GetloginBasedMarketHierarchies' + '/' + this._currentUser.PKID)
+                .subscribe(
+                    (x) => { this.marketHierarchies = ((x) as any) },
+                    (e) => {
+                        // Error
+                        this.notificationService.showError(e);
+                    }, () => {
+
+                        this.regions = this.marketHierarchies.filter(x => x.LevelNo == 1);
+                        this.initDistributor();
+                    });
+    }
+
+    over() {
+
+    }
+
+
+
+    //GOOGLE MAP
+    //loadGoogle Map
+    private loadGoogleMap() {
+        this.mapsAPILoader.load().then(() => {
+            this.setCurrentLocation();
+            this.geoCoder = new google.maps.Geocoder;
+
+            //let autocomplete = new google.maps.places.Autocomplete(this.searchElementRef.nativeElement, {
+            //    types: ["address"]
+            //});
+            //autocomplete.addListener("place_changed", () => {
+            //    this.ngZone.run(() => {
+            //        //get the place result
+            //        let place: google.maps.places.PlaceResult = autocomplete.getPlace();
+
+            //        //verify result
+            //        if (place.geometry === undefined || place.geometry === null) {
+            //            return;
+            //        }
+
+            //        //set latitude, longitude and zoom
+            //        this.latitude = place.geometry.location.lat();
+            //        this.longitude = place.geometry.location.lng();
+            //        this.zoom = 12;
+            //    });
+            //});
+        });
+    }
+    // Get Current Location Coordinates
+    private setCurrentLocation() {
+        if ('geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition((position) => {
+                //this.latitude = 23.810331;
+                //this.longitude = 90.412521;
+                this.latitude = position.coords.latitude;
+                this.longitude = position.coords.longitude;
+                this.zoom = 10;
+            });
+        }
+
+        //if (this.employees == undefined) {
+        //    this.employees = [];
+        //    let employee: Employees = new Employees();
+        //    employee.Latitude = 23.810331;
+        //    employee.Longitude = 90.412521;
+        //    employee.DistributorName = "None";
+        //    employee.ThanaName = "Dhaka";
+        //    employee.Name = "None";
+        //    this.employees.push(employee);
+
+        //}
+
+        if (this.employees == undefined && this.mapEmployees == undefined) {
+            this.mapEmployees = [];
+            let employee: Employees = new Employees();
+            employee.Latitude = 23.810331;
+            employee.Longitude = 90.412521;
+            employee.DistributorName = "None";
+            employee.ThanaName = "Dhaka";
+            employee.Name = "None";
+            this.mapEmployees.push(employee);
+
+        }
+
+    }
+
+    clickedMarker(label: number, index: number) {
+        console.log(`clicked the marker: ${label || index}`)
+    }
+
+
+    markerDragEnd($event: MouseEvent) {
+        console.log($event);
+        this.latitude = $event.coords.lat;
+        this.longitude = $event.coords.lng;
+        this.getAddress(this.latitude, this.longitude);
+    }
+
+    getAddress(latitude, longitude) {
+        this.geoCoder.geocode({ 'location': { lat: latitude, lng: longitude } }, (results, status) => {
+            console.log(results);
+            console.log(status);
+            if (status === 'OK') {
+                if (results[0]) {
+                    this.zoom = 12;
+                    this.address = results[0].formatted_address;
+                } else {
+                    window.alert('No results found');
+                }
+            } else {
+                window.alert('Geocoder failed due to: ' + status);
+            }
+
+        });
+    }
+    //GOOGLE MAP
+
+
+
+
+    public setSelectableSettings(): void {
+        this.selectableSettings = {
+            checkboxOnly: true,
+            mode: 'single'// this.mode
+        };
+    }
+
+
+
+
+    getColor(event: any) {
+        let styles: any;
+        const tempEvent = event;
+        if (event != undefined && event.dataItem != undefined && event.dataItem.Status == EnumJobStatus.Assinged) {
+            styles = {
+                'background-color': 'green',
+                'font-weight': 'bold',
+                'text-align': 'center',
+                'vertical- align': 'middle',
+                'height': '100%',
+                'weight': '100%'
+            };
+        } else if (event != undefined && event.dataItem != undefined && event.dataItem.Status == EnumJobStatus.Received) {
+            styles = {
+                'background-color': 'yellow',
+                'font-weight': 'bold',
+                'text-align': 'center',
+                'color': 'black',
+                'vertical- align': 'middle',
+                'height': '100%',
+                'weight': '100%'
+            };
+        } else if (event != undefined && event.dataItem != undefined && event.dataItem.Status == EnumJobStatus.Completed) {
+            styles = {
+                'background-color': '#808080',
+                'font-weight': 'bold',
+                'text-align': 'center',
+                'vertical- align': 'middle',
+                'height': '100%',
+                'weight': '100%'
+            };
+        }
+        else if (event != undefined && event.dataItem != undefined && event.dataItem.Status == EnumJobStatus.Rejected) {
+            styles = {
+                'background-color': '#F1948A',
+                'font-weight': 'bold',
+                'text-align': 'center',
+                'vertical- align': 'middle',
+                'height': '100%',
+                'weight': '100%'
+            };
+        }
+        else if (event != undefined && event.dataItem != undefined && event.dataItem.Status == EnumJobStatus.NotYetAccept) {
+            styles = {
+                'background-color': '#EE82EE',
+                'font-weight': 'bold',
+                'text-align': 'center',
+                'vertical- align': 'middle',
+                'height': '100%',
+                'weight': '100%'
+            };
+        }
+        else if (event != undefined && event.dataItem != undefined && event.dataItem.Status == EnumJobStatus.Reschedule) {
+            styles = {
+                'background-color': '#FFA500',
+                'font-weight': 'bold',
+                'text-align': 'center',
+                'vertical- align': 'middle',
+                'height': '100%',
+                'weight': '100%'
+            };
+        }
+        else if (event != undefined && event.dataItem != undefined && event.dataItem.Status == EnumJobStatus.Request_Re_Assign) {
+            styles = {
+                'background-color': '#66CDAA',
+                'font-weight': 'bold',
+                'text-align': 'center',
+                'vertical- align': 'middle',
+                'height': '100%',
+                'weight': '100%'
+            };
+        }
+        else if (event != undefined && event.dataItem != undefined && event.dataItem.Status == EnumJobStatus.UnSchedule) {
+            styles = {
+                'background-color': '#CD853F',
+                'font-weight': 'bold',
+                'text-align': 'center',
+                'vertical- align': 'middle',
+                'height': '100%',
+                'weight': '100%'
+            };
+        }
+        else if (event != undefined && event.dataItem != undefined && event.dataItem.Status == EnumJobStatus.Accepted) {
+            styles = {
+                'background-color': '#00BFFF',
+                'font-weight': 'bold',
+                'text-align': 'center',
+                'vertical- align': 'middle',
+                'height': '100%',
+                'weight': '100%'
+            };
+        }
+        else {
+            styles = {
+                'background-color': 'transparent',
+                'font-weight': 'normal'
+            };
+        }
+        return styles;
+    }
+
+
+
+    titleTemplate(event: any) {
+        let title: any;
+        let styles: any;
+        const tempEvent = event;
+        if (event != undefined && event.dataItem != undefined) {
+            //styles = {
+            //    'background-color': 'green',
+            //    'font-weight': 'bold',
+            //    'text-align': 'center',
+            //    'vertical- align': 'middle',
+            //    'height': '100%',
+            //    'weight': '100%'
+            //};
+            title = event.dataItem.CustomerName + "\n" + event.dataItem.CustomerPhone + "\n" +
+                event.dataItem.CustomerAddress + "\n" + event.dataItem.Cpe;
+        }
+        return title;
+    }
+
+    loadScheduler() {
+        this.selectedViewIdx = 0;
+        if (this.iJobs != undefined) {
+            if (this.iJobs.length > 0) {
+                this.events = [];
+                this.resources[0].data = [];
+
+                for (const itm of this.iJobs) {
+
+                    if (itm.StartDateTime != undefined && itm.EndDateTime != undefined) {
+                        const temp = <SchedulerEvent>{
+                            id: itm.PKID,
+                            // start: itm.StartTime,
+                            start: Helper.parseDateAdjust(itm.StartDateTime.toLocaleString()),
+                            startTimezone: null,
+                            end: Helper.parseDateAdjust(itm.EndTempDateTime.toLocaleString()),
+                            endTimezone: null,
+                            isAllDay: false,
+                            title: ((itm.CustomerName === undefined) ? '' : itm.CustomerName) + "-" + ((itm.CustomerPhone === undefined) ? '' : itm.CustomerPhone) + "-" + '(' + itm.JobCode + ')' + "-" + ((itm.SubscriberId === undefined || itm.SubscriberId === null) ? '' : itm.SubscriberId) + "-" + ((itm.STBnumber === undefined || itm.STBnumber === null) ? '' : itm.STBnumber),
+                            description: itm.Address,
+                            recurrenceRule: null,
+                            recurrenceId: null,
+                            recurrenceException: null,
+                            TeamID: itm.TeamID,
+                            TeamName: itm.TeamName,
+                            Status: itm.Status,
+                            CustomerName: "Name: " + itm.CustomerName,
+                            CustomerPhone: "Phone: " + itm.CustomerPhone,
+                            CustomerAddress: "Address: " + itm.HouseNo + " " + itm.RoadNo + " " + itm.Landmark,
+                            Cpe: "Product: " + itm.CpeName
+                        };
+                        this.events.push(temp);
+                    }
+
+                    if (this.resources[0].data.find(c => c.TeamID == itm.TeamID) == undefined) {
+                        const res = { TeamName: itm.TeamName, TeamCode: itm.TeamCode, TeamID: itm.TeamID, color: '#F5B7B1', status: itm.Status };
+                        this.resources[0].data.push(res);
+                    }
+                }
+            }
+        }
+        this.selectedViewIdx = 1;
+    }
+
+    loadSchedulerNew() {
+        this.selectedViewIdx = 0;
+        if (this.iJobs != undefined) {
+            if (this.iJobs.length > 0) {
+                this.events = [];
+                this.resources[0].data = [];
+
+                for (const itm of this.iJobs) {
+
+                    if (itm.StartDateTime != undefined && itm.EndDateTime != undefined) {
+                        const temp = <SchedulerEvent>{
+                            id: itm.PKID,
+                            // start: itm.StartTime,
+                            start: Helper.parseDateAdjust(itm.StartDateTime.toLocaleString()),
+                            startTimezone: null,
+                            end: Helper.parseDateAdjust(itm.EndTempDateTime.toLocaleString()),
+                            endTimezone: null,
+                            isAllDay: false,
+                            title: ((itm.CustomerName === undefined) ? '' : itm.CustomerName) + "-" + ((itm.CustomerPhone === undefined) ? '' : itm.CustomerPhone) + "-" + '(' + itm.JobCode + ')' + "-" + ((itm.SubscriberId === undefined || itm.SubscriberId === null) ? '' : itm.SubscriberId) + "-" + ((itm.STBnumber === undefined || itm.STBnumber === null) ? '' : itm.STBnumber),
+                            description: itm.Address,
+                            recurrenceRule: null,
+                            recurrenceId: null,
+                            recurrenceException: null,
+                            TeamID: itm.TeamID,
+                            TeamName: itm.TeamName,
+                            Status: itm.Status,
+                            CustomerName: "Name: " + itm.CustomerName,
+                            CustomerPhone: "Phone: " + itm.CustomerPhone,
+                            CustomerAddress: "Address: " + itm.HouseNo + " " + itm.RoadNo + " " + itm.Landmark,
+                            Cpe: "Product: " + itm.CpeName
+                        };
+                        this.events.push(temp);
+                    }
+
+                    if (this.resources[0].data.find(c => c.TeamID == itm.TeamID) == undefined) {
+                        const res = { TeamName: itm.TeamName, TeamCode: itm.TeamCode, TeamID: itm.TeamID, color: '#F5B7B1', status: itm.Status };
+                        this.resources[0].data.push(res);
+                    }
+                }
+            }
+        }
+        this.selectedViewIdx = 1;
+    }
+
+
+    RefreshDashBoard() {
+        this.ColorDashBoard();
+    }
+
+    initGetDistributorCompleted(item: BusinessPartner[]) {
+
+        if (this.initdistributors != undefined) {
+            this.initdistributors.forEach(x => {
+                if (x.PKID != undefined) {
+                    this.selectedDistributorIds.push(x.PKID)
+                }
+
+            })
+
+            let selectedID = this.selectedDistributorIds.join();
+
+            let data = {
+                distributorIDs: selectedID,
+                enumText: EmployeeTypeEnum.InstallationTeam
+            };
+
+
+            this.employees = [];
+            this.mapEmployees = [];
+
+            this._getJobInstallers =
+                this.subscribers.getEmployees =
+                this.apiService.httpPost('Employee/GetJobInstalLers', data)
+                    .subscribe(
+                        (x) => { this.employees = ((x) as any) },
+                        (e) => { this.notificationService.showError(e); },
+                        () => {
+                            this.loadTotalJobcount(data);
+                            // this.mapEmployees = this.employees.filter(x => x.Latitude > 0 && x.Longitude > 0);
+                            // this.loadEmployeeGrid();
+                        });
+        }
+    }
+
+    getDistributorCompleted(item: BusinessPartner[]) {
+        // this.distributors = item;
+        this.businessPartner = new BusinessPartner();
+        this.businessPartner.PKID = -1;
+        this.businessPartner.Name = "All";
+        this.distributors.unshift(this.businessPartner);
+        var status = 1;
+        //  <------------------GetRegionwiseTotalJob------------>
+        if (this.distributors != undefined) {
+
+            this.distributors.forEach(x => {
+                if (x.PKID != undefined) {
+                    this.selectedDistributorIds.push(x.PKID)
+                }
+
+            })
+
+            let selectedID = this.selectedDistributorIds.join();
+
+            let data = {
+                distributorIDs: selectedID,
+                enumText: EmployeeTypeEnum.InstallationTeam
+            };
+
+
+            this.employees = [];
+            this.mapEmployees = [];
+
+
+            this.subscribers.getEmployees =
+                this.apiService.httpPost('Employee/GetJobInstalLers', data)
+                    .subscribe(
+                        (x) => { this.employees = ((x) as any) },
+                        (e) => { this.notificationService.showError(e); },
+                        () => {
+                            this.mapEmployees = this.employees.filter(x => x.Latitude > 0 && x.Longitude > 0);
+                            this.loadTotalJobcount(data);
+
+                        });
+            //const c: BusinessPartner = this.distributors[0];
+            //this.DistributorID = c.PKID;
+
+            //this._getTeams =
+            //    this.subscribers = this.apiService.httpGet<Employees[]>('Employee/GetEmployee' + '/' + this.DistributorID + '/' + null + '/' + null + '/' + EmployeeTypeEnum.InstallationTeam + '/' + null + '/' + status)
+            //        .subscribe
+            //        (x => {
+            //            this._teams = ((x) as any);
+            //        },
+            //            (e) => { this.notificationService.showError(e); },
+            //            () => {
+
+
+            //            }
+            //        );
+        }
+    }
+
+    public regionChangeHandler(e: any) {
+        this.employees = [];
+        this.loadEmployeeGrid();
+        this.iJobsTemp = [];
+        this.loadGrid();
+        this.iCancelJobs = [];
+        this.loadCancelGrid();
+        this.selectedDistributorIds = [];
+        this.areas = [];
+        this.selectedRegionArea = [];
+        this.distributors = [];
+
+        if (this.distributorEmployeeBP != undefined || this.distributorEmployeeBP != null) {
+            if (this.regionID > 0 && this.regionID != null) {
+                this.areas = this.distributorEmployeemarket.filter(x => x.LevelNo == 2 && x.ParentID == this.regionID)
+                this.initDistributorEmployee();
+            }
+
+            if (this.regionID == null) {
+                this.initDistributorEmployee();
+            }
+
+
+        } else {
+            if (this.regionID > 0 && this.regionID != null) {
+                this.areas = this.marketHierarchies.filter(x => x.LevelNo == 2 && x.ParentID == this.regionID)
+                this.selectedRegionArea.push(this.regionID)
+
+                let selectedAreaID = this.selectedRegionArea.join();
+                if (selectedAreaID !== undefined) {
+
+                    this._getDistributorsByRegions =
+                        this.subscribers.getDistributors = this.apiService.httpGet<BusinessPartner[]>('BusinessPartner/GetDistributorsByRegion' + '/' + selectedAreaID + '/' + this._currentUser.PKID)
+                            .subscribe(
+                                (x) => { this.distributors = x; },
+                                (e) => { this.notificationService.showError(e); },
+                                () => {
+
+                                    this.getDistributorCompleted(this.distributors);
+                                    //this.mapEmployees = this.employees.filter(x => x.Latitude > 0 && x.Longitude > 0);
+                                    this.loadEmployeeGrid();
+                                }
+                            );
+                }
+            }
+
+            if (this.regionID == null) {
+                //this.userBasedRegionArea = [];
+                //this.selectedDistributorIds = [];
+                //this.areas = [];
+                //this.selectedRegionArea = [];
+                this.initDistributor();
+            }
+
+
+        }
+
+    }
+
+
+
+
+    public initDistributor() {
+        this.userBasedRegionArea = [];
+        if (this.regions.length > 0) {
+            this.regions.forEach(x => {
+                if (x.PKID !== undefined) {
+                    let region = x.PKID;
+                    this.userBasedRegionArea.push(region);
+                }
+            });
+
+            let selectedRegionID = this.userBasedRegionArea.join();
+            if (selectedRegionID !== undefined) {
+
+                this._getDistributorsByRegion =
+                    this.subscribers.getDistributors = this.apiService.httpGet<BusinessPartner[]>('BusinessPartner/GetDistributorsByRegion' + '/' + selectedRegionID + '/' + this._currentUser.PKID)
+                        .subscribe(
+                            (x) => {
+                                this.initdistributors = x;
+                            },
+                            (e) => { this.notificationService.showError(e); },
+                            () => {
+                                this.initGetDistributorCompleted(this.initdistributors);
+                            }
+                        );
+            }
+        }
+    }
+
+    public initDistributorEmployee() {
+        this.initdistributors = [];
+        this.distributors = [];
+        this.selectedDistributorIds = [];
+        if (this.regions.length > 0) {
+            var temp = this.distributorEmployeemarket.find(x => x.PKID == this.distributorEmployeeBP.MarketHierarchyID);
+            if (temp) {
+                this.initdistributors = this.distributorEmployees;
+                this.distributors = this.distributorEmployees;
+                this.initGetDistributorCompleted(this.initdistributors);
+            }
+        }
+    }
+
+    public areaChangeHandler(e: any) {
+        this.selectedRegionArea = [];
+        this.selectedDistributorIds = [];
+
+        //  if (this.regionID > 0) {
+        //    this.selectedRegionArea.push(this.regionID);
+        //} else {
+        //    this.notificationService.showError("Select Region First");
+        //    return;
+        //}
+
+        if (this.regionID < 0) {
+            this.notificationService.showError("Select Region First");
+            return;
+        }
+
+
+
+        if (e > 0) {
+
+            if (this.distributorEmployeeBP != undefined || this.distributorEmployeeBP != null) {
+                //this.initdistributors = [];
+                //this.distributors = [];
+                if (this.regionID > 0 && this.regionID != null) {
+
+                    this.initDistributorEmployee();
+                }
+
+
+            } else {
+
+                // this.areas = this.marketHierarchies.filter(x => x.LevelNo == 2 && x.ParentID == this.regionID)
+                this.selectedRegionArea.push(e)
+
+                //if (this.areas.length > 0) {
+                //    this.areas.forEach(x => {
+                //        if (x.PKID != undefined) {
+                //            this.selectedRegionArea.push(x.PKID)
+                //        }
+
+                //    })
+                //}
+
+                let selectedAreaID = "";
+                selectedAreaID = this.selectedRegionArea.join();
+                this.distributors = [];
+                if (selectedAreaID !== undefined) {
+                    //this.subscribers.getDistributors = this.apiService.httpGet<BusinessPartner[]>('BusinessPartner/GetDistributorsByRegion' + '/' + selectedAreaID)
+                    //    .subscribe(
+                    //        (x) => { this.distributors = x; },
+                    //        (e) => { this.notificationService.showError(e); },
+                    //        () => {
+
+                    //            this.getDistributorCompleted(this.distributors);
+                    //            //this.mapEmployees = this.employees.filter(x => x.Latitude > 0 && x.Longitude > 0);
+                    //            //this.loadEmployeeGrid();
+                    //        }
+                    //    );
+
+                    this.subscribers.getDistributors = this.apiService.httpGet<BusinessPartner[]>('BusinessPartner/GetDistributorsByRegion' + '/' + selectedAreaID + '/' + this._currentUser.PKID)
+                        .subscribe(
+                            (x) => { this.distributors = x; },
+                            (e) => { this.notificationService.showError(e); },
+                            () => {
+
+                                this.getDistributorCompleted(this.distributors);
+                                //this.mapEmployees = this.employees.filter(x => x.Latitude > 0 && x.Longitude > 0);
+                                //this.loadEmployeeGrid();
+                            }
+                        );
+                }
+            }
+        }
+    }
+
+    public thanaLoad() {
+        this.selectedDistributorIds = [];
+
+        this.BpLocations.forEach(x => {
+
+            this.thanas.forEach(item => {
+                if (item.PKID == x.thanaID && x.districtID == this.districtID) {
+                    let thanaExist = this.thanaUser.find(y => y.PKID == item.PKID);
+                    if (!thanaExist) {
+                        var thana = new Thana();
+                        thana.Name = item.Name;
+                        thana.PKID = item.PKID;
+                        this.thanaUser.push(thana);
+                    }
+                }
+
+            })
+
+        })
+        this.sort(this.thanaUser);
+
+
+        // team attendance  load and bla bla
+        if (this.distributors != undefined) {
+
+            this.distributors.forEach(x => {
+                if (x.PKID != undefined) {
+                    this.selectedDistributorIds.push(x.PKID)
+                }
+
+            })
+
+            let selectedID = this.selectedDistributorIds.join();
+
+            let data = {
+                distributorIDs: selectedID,
+                enumText: EmployeeTypeEnum.InstallationTeam
+            };
+
+
+            this.employees = [];
+            this.mapEmployees = [];
+
+
+            this.subscribers.getEmployees =
+                this.apiService.httpPost('Employee/GetJobInstalLers', data)
+                    .subscribe(
+                        (x) => { this.employees = ((x) as any) },
+                        (e) => { this.notificationService.showError(e); },
+                        () => {
+                            this.mapEmployees = this.employees.filter(x => x.Latitude > 0 && x.Longitude > 0);
+                            this.loadTotalJobcount(data);
+                        });
+        }
+
+    }
+
+
+
+    public ColorDashBoard(): void {
+        let col = 1;
+        let row = 0;
+        const timeslots = ['09:00-10:30', '10:30-12:00', '12:00-13:30', '13:30-15:00', '15:00-16:30', '16:30-18:00'];
+        // var Team = ["INS1", "INS2", "INS3", "INS4", "IN5"];
+        this._rows = [];
+        this._cels = [];
+        this._columns = [];
+        while (row <= this._teams.length) {
+            const jobrow: JobDBRow = new JobDBRow();
+            jobrow.RowID = row;
+            jobrow.Name = row.toString();
+            this._rows.push(jobrow);
+            row = row + 1;
+        }
+
+
+        // Team Collumn
+        const teamCol: JobDBColumn = new JobDBColumn();
+        teamCol.ColumnID = 0;
+        teamCol.headerOne = 'Team';
+        teamCol.headertwo = '';
+        teamCol.Color = '';
+        teamCol.DayIndex = 0;
+        this._columns.push(teamCol);
+
+
+
+        const today = new Date();
+        const UpTo = new Date();
+        this.DateOne = this.datepipe.transform(today, 'dd-MMM');
+
+        UpTo.setDate(today.getDate() + 1);
+        this.DateTwo = this.datepipe.transform(UpTo, 'dd-MMM');
+        row = 0;
+        let colid: number;
+        colid = 1;
+        col = 0;
+        let dayindex = 1;
+        // alert("length: " + this._assingedJobs.length.toString());
+        for (const d = today; d <= UpTo; today.setDate(today.getDate() + 1)) {
+            col = 0;
+            while (col < timeslots.length) {
+
+                const jobCol: JobDBColumn = new JobDBColumn();
+                jobCol.ColumnID = colid;
+                colid = colid + 1;
+                jobCol.JobDate = d.getDay();
+                jobCol.Color = 'celHeaderOne';
+                jobCol.DayIndex = dayindex;
+
+                this._columns.push(jobCol);
+                col = col + 1;
+
+            }
+            dayindex = dayindex + 1;
+        }
+        row = 0;
+        let colindex: number;
+        colindex = 0;
+        while (row < this._teams.length) {
+
+            const team = this._teams[row];
+            const teamcel: JobDBcel = new JobDBcel();
+            teamcel.rowID = row; // this._rows[row].RowID;
+            teamcel.ColumnID = 0; // this._columns[colindex].ColumnID;
+            teamcel.TeamName = team.Name;
+            this._cels.push(teamcel);
+            colindex = 1;
+            while (colindex < this._columns.length) {
+                const jobcel: JobDBcel = new JobDBcel();
+                if (this.getempday(team.WeeklyHoliday1) == this._columns[colindex].JobDate) {
+                    jobcel.ColorClass = 1;
+                }
+                this.assignjob = this._assingedJobs.find(x => x.TeamID == team.PKID && x.toslot == colindex);
+                if (this.assignjob != undefined) {
+                    jobcel.Name = this.assignjob.JobCode + ', ' + this.assignjob.Name + ', ' + this.assignjob.Phone;
+                    jobcel.ColorClass = 2;
+                    if ((this.assignjob.fromslot - this.assignjob.toslot) == 0) { jobcel.serviceType = 2; } else { jobcel.serviceType = 1; }
+                }
+                if (this._cels.length > 1) {
+                    if (this._cels[this._cels.length - 1].serviceType == 1) { jobcel.ColorClass = 2; }
+                }
+                jobcel.rowID = row;
+                jobcel.ColumnID = colindex;
+                this._cels.push(jobcel);
+                colindex = colindex + 1;
+            }
+            row = row + 1;
+        }
+    }
+    public getempday(day: number): number {
+        let dayofweek;
+        switch (day) {
+            case 3: {
+                dayofweek = 1;
+                break;
+            }
+            case 4: {
+                dayofweek = 2;
+                break;
+            } case 5: {
+                dayofweek = 3;
+                break;
+            } case 6: {
+                dayofweek = 4;
+                break;
+            } case 7: {
+                dayofweek = 5;
+                break;
+            } case 1: {
+                dayofweek = 6;
+                break;
+            }
+            case 2: {
+                dayofweek = 0;
+                break;
+            }
+        }
+        return dayofweek;
+    }
+
+    public initEmployee(): void {
+        this.subscribers.initData =
+            this._initEmployeeSubscribers$ = this.apiService.httpGet<Employee[]>('Employee/GetCurrentUserBranchEmployees/' + this._currentUser.PKID)
+                .subscribe(x => { this.employees$ = ((x) as any); },
+                    (e) => {
+                        this.notificationService.showError(e);
+                    },
+                    () => {
+                    });
+    }
+
+    public pageChange(event: PageChangeEvent): void {
+        this.skip = event.skip;
+        this.loadGrid();
+
+
+        // this.DistributorChangeHandler(this.distributorID);
+      //  this.search();
+
+        // this.initGridData();
+    }
+
+    public pageChange1(event: PageChangeEvent): void {
+        this.skip1 = event.skip;
+        this.initFFGridData();
+    }
+
+    public pageChange2(event: PageChangeEvent): void {
+        this.isTeamAttendencePageEvent = true;
+        this.skip2 = event.skip;
+        this.loadEmployeeGrid();
+    }
+    public pageChange3(event: PageChangeEvent): void {
+        this.skip3 = event.skip;
+        this.loadGrid1();
+    }
+    public pageChange4(event: PageChangeEvent): void {
+        this.skip4 = event.skip;
+        this.loadCancelGrid();
+    }
+
+    public pageChangeJobStatus(event: PageChangeEvent): void {
+        this.skipJobStatus = event.skip;
+        this.loadGridJobStatus();
+    }
+    public pageChange5(event: PageChangeEvent): void {
+        this.isTeamAttendencePageEvent = true;
+        this.skip5 = event.skip;
+        this.loadDistributorWiseEmployeeGrid();
+    }
+
+    public onDistributorChanged(e: any) {
+        if (e.length <= 0) {
+            this.notificationService.showError("Please select at least one distributor");
+            return;
+        }
+
+        if (e[0] == -1 && e.length == 1) {
+            //  this.selectedDistributorIds.pop();
+            this.distributors.forEach(x => {
+                if (x.PKID != undefined && x.PKID != -1) {
+                    // this.selectedDistributorAll.push(x.PKID)
+                    this.selectedDistributorIds.push(x.PKID)
+                }
+
+            })
+        }
+
+        let selectedID = this.selectedDistributorIds.join();
+
+        let data = {
+            distributorIDs: selectedID,
+            enumText: EmployeeTypeEnum.InstallationTeam
+        };
+
+
+        this.employees = [];
+        this.mapEmployees = [];
+
+
+        this.subscribers.getEmployees =
+            this.apiService.httpPost('Employee/GetJobInstalLers', data)
+                .subscribe(
+                    (x) => { this.employees = ((x) as any) },
+                    (e) => { this.notificationService.showError(e); },
+                    () => {
+                        this.mapEmployees = this.employees.filter(x => x.Latitude > 0 && x.Longitude > 0);
+                        this.loadTotalJobcount(data);
+
+                    });
+    }
+
+    public loadTotalJobcount(data: any): void {
+        this._getTotalJobCountSubscribers$ =
+            this.subscribers.getTotalJobCount =
+            this.apiService.httpPost('Employee/GetTotalJobCount', data)
+                .subscribe(
+                    (x) => { this.employeeJobcount = ((x) as any) },
+                    (e) => { this.notificationService.showError(e); },
+                    () => {
+
+                        if (this.employeeJobcount.length > 0) {
+                            this.total = this.employeeJobcount[0].TotalJob;
+                            this.jobInHand = this.employeeJobcount[0].AssignedJob;
+                            this.rejected = this.employeeJobcount[0].RejectedJob;
+                            this.accepted = this.employeeJobcount[0].ReceivedJob;
+                            this.completed = this.employeeJobcount[0].CompletedJob;
+                            this.rescheduled = this.employeeJobcount[0].RescheduledJob;
+                            this.unscheduled = this.employeeJobcount[0].UnscheduledJob;
+
+                        }
+                        this.loadEmployeeGrid();
+                        this.loadDistributorWiseEmployeeCount(data);
+                    });
+
+    }
+
+    public loadDistributorWiseEmployeeCount(data: any): void {
+        this._getDistributorWiseEmployeeCount =
+            this.subscribers.getDistributorWiseEmployeeCount =
+            this.apiService.httpPost('Employee/GetDistributorWiseInstallersCount', data)
+                .subscribe(
+                    (x) => { this.TeamAttendanceSummary = ((x) as any) },
+                    (e) => { this.notificationService.showError(e); },
+                    () => {
+                        this.totalEmployeeLogin = this.TeamAttendanceSummary.TotalInstallerLogin;
+                        this.loadDistributorWiseEmployeeGrid();
+                    });
+
+    }
+
+    public loadEmployeeGrid(): void {
+        this.gridView2 = {
+            data: this.employees.slice(this.skip2, this.skip2 + this.pageSize2),
+            total: this.employees.length
+        };
+    }
+
+    public loadDistributorWiseEmployeeGrid(): void {
+        this.distributorWiseEmployeeGridView = {
+            data: this.TeamAttendanceSummary.EmployeeAttendance.slice(this.skip5, this.skip5 + this.pageSize5),
+            total: this.TeamAttendanceSummary.EmployeeAttendance.length
+        };
+    }
+
+    public initFFGridData(): void {
+        this.subscribers.listGet =
+            this.subscribers = this.apiService.httpGet<FieldForceActivitySummary[]>('Employee/GetFieldForceSummary/' + this._currentUser.PKID + '/' + this._currentUser.USBBranchID)
+                .subscribe(x => {
+                    this.fieldForceActivitySummaries = ((x) as any);
+                },
+                    (e) => {
+                        // Error
+                        this.notificationService.showError(e);
+                    },
+                    () => {
+                        this.loadFFGrid();
+                    });
+    }
+    public onNewJobClick(): void {
+        this.router.navigateByUrl('/wfms/Job');
+    }
+
+    onUnassignedClick(): void {
+        if (this.taggedSelection.length == 0) {
+            this.notificationService.showWarning('Please select at least 1 job.');
+            return;
+        }
+        this.jobIds = '';
+        for (const item of this.taggedSelection) {
+            this.jobIds = this.jobIds + item + ',';
+        }
+        this.jobStatusChange = new JobStatusChange();
+        this.jobStatusChange.JobIDs = this.jobIds;
+        this.jobStatusChange.AssignedFFID = null;
+        this.jobStatusChange.AssignedFromFFID = null;
+        this.jobStatusChange.AssignedTime = null;
+
+        this.jobStatusChange.AssignmentStatus = EnumJobAssignmentStatus.UnAssigned;
+        this.jobStatusChange.RejectionType = null;
+        this.jobStatusChange.Remarks = null;
+        this.subscribers.saveData = this._saveJobSubscribers$ = this.apiService.httpPost('Job/ChangeJobStatus', this.jobStatusChange).
+            subscribe(x => {
+                // this.initGridData();
+                this.initFFGridData();
+            },
+                (e) => {
+                    // Error
+                    this.notificationService.showError(e);
+                },
+                () => {
+                    this.notificationService.showSuccess('Job/s has been un-assigned successfully.');
+                });
+        this.checked = false;
+        this.isAssignHidden = this.checked;
+        this.isUnassignHidden = !this.checked;
+        this.isRejectHidden = !this.checked;
+
+    }
+
+    public editClick({ dataItem, rowIndex, columnIndex }: any, template: TemplateRef<any>): void {
+        if (columnIndex == 13 || columnIndex == 14) {
+            return;
+
+        } else {
+            this._dataTransferService.setData(dataItem);
+            this._pubSubService.on('details-picker').subscribe(() => this.closeModal());
+            this.bsModalRef = this.modalService.show(
+                template,
+                Object.assign({}, this.config, { class: 'gray modal-lg' })
+            );
+        }
+    }
+
+    onRejectedClick(): void {
+        if (this.taggedSelection.length == 0) {
+            this.notificationService.showWarning('Please select at least 1 job.');
+            return;
+        }
+        this.jobIds = '';
+        for (const item of this.taggedSelection) {
+            this.jobIds = this.jobIds + item + ',';
+        }
+        this.jobStatusChange = new JobStatusChange();
+        this.jobStatusChange.JobIDs = this.jobIds;
+        this.jobStatusChange.AssignedFFID = null;
+        this.jobStatusChange.AssignedFromFFID = null;
+        this.jobStatusChange.AssignedTime = null;
+        this.jobStatusChange.AssignmentStatus = EnumJobAssignmentStatus.Rejected;
+        this.jobStatusChange.RejectionType = null;
+        this.jobStatusChange.Remarks = null;
+        this.subscribers.saveData =
+            this._saveJobSubscribers$ = this.apiService.httpPost('Job/ChangeJobStatus', this.jobStatusChange).
+                subscribe(x => {
+                    // this.initGridData();
+                    this.initFFGridData();
+                },
+                    (e) => {
+                        // Error
+                        this.notificationService.showError(e);
+                    }, () => {
+                        this.notificationService.showSuccess('Job/s has been rejected successfully.');
+                    });
+
+        this.checked = false;
+        this.isAssignHidden = this.checked;
+        this.isUnassignHidden = !this.checked;
+        this.isRejectHidden = !this.checked;
+
+
+    }
+    public loadGrid(): void {
+        this.gridView = {
+            data: this.iJobsTemp.slice(this.skip, this.skip + this.pageSize),
+            total: this.iJobsTemp.length
+        };
+
+    }
+
+    public loadCancelGrid(): void {
+        this.gridViewCancelJobs = {
+            data: this.iCancelJobs.slice(this.skip4, this.skip4 + this.pageSizeCJobs),
+            total: this.iCancelJobs.length
+        };
+
+    }
+
+    public loadFFGrid(): void {
+        this.gridView1 = {
+            data: this.fieldForceActivitySummaries.slice(this.skip1, this.skip1 + this.pageSize1),
+            total: this.fieldForceActivitySummaries.length
+        };
+
+    }
+
+
+    public createJobAssignForm() {
+        this.jobAssignForm = this.formBuilder.group({
+
+            assignedDate: new Date(),
+            assignedFFID: ['', Validators.required],
+            assigned: ''
+        });
+    }
+
+    onAssignedSwitchChange($event) {
+
+        if ($event == false) {
+            this.checked = $event;
+            this.isAssignHidden = false;
+            this.isUnassignHidden = true;
+            this.isRejectHidden = true;
+            this.iJobs = this.iJobsTemp.filter(x => x.AssignmentStatus != EnumJobAssignmentStatus.Assigned && x.AssignmentStatus != EnumJobAssignmentStatus.Received && x.AssignmentStatus != EnumJobAssignmentStatus.Completed);
+            this.loadGrid();
+            this.taggedSelection = [];
+        } else {
+            this.checked = $event;
+            this.isAssignHidden = true;
+            this.isUnassignHidden = false;
+            this.isRejectHidden = false;
+            this.iJobs = this.iJobsTemp.filter(x => x.AssignmentStatus == EnumJobAssignmentStatus.Assigned || x.AssignmentStatus == EnumJobAssignmentStatus.Received);
+            this.loadGrid();
+            this.taggedSelection = [];
+        }
+    }
+
+    public submitJobAssignForm(jobAssignForm: any) {
+        if (this.taggedSelection.length == 0) {
+            this.notificationService.showWarning('Please select at least 1 job.');
+            return;
+        }
+        this.jobIds = '';
+        for (const item of this.taggedSelection) {
+            this.jobIds = this.jobIds + item + ',';
+        }
+        this.jobStatusChange = new JobStatusChange();
+        this.jobStatusChange.JobIDs = this.jobIds;
+        this.jobStatusChange.AssignedFFID = jobAssignForm.controls['assignedFFID'].value['PKID'];
+        this.jobStatusChange.AssignedFromFFID = this._currentUser.PKID;
+        this.jobStatusChange.AssignedTime = new Date(jobAssignForm.controls['assignedDate'].value).toLocaleString();
+        this.jobStatusChange.AssignmentStatus = EnumJobAssignmentStatus.Assigned;
+        this.jobStatusChange.RejectionType = null;
+        this.jobStatusChange.Remarks = null;
+
+        this.subscribers.saveData =
+            this._saveJobSubscribers$ = this.apiService.httpPost('Job/ChangeJobStatus', this.jobStatusChange).
+                subscribe(x => {
+                    //  this.initGridData();
+                    this.initFFGridData();
+                },
+                    (e) => { this.notificationService.showError(e); }, () => {
+                        this.notificationService.showSuccess('Job/s has been assigned successfully.');
+                    });
+
+
+        this.checked = false;
+        this.isAssignHidden = this.checked;
+        this.isUnassignHidden = !this.checked;
+        this.isRejectHidden = !this.checked;
+
+    }
+
+    onRefreshClick() {
+        this.initFFGridData();
+        //  this.initGridData();
+        this.initEmployee();
+    }
+
+    serachAuto() {
+        if (this.selectedDistributorIds.length < 0) {
+            return;
+        }
+        else {
+            this.search();
+        }
+    }
+
+    //public districtChangeHandler(e: any) {
+    //    this.thanas = [];
+
+    //    this.selectedRegionArea.push(this.regionID)
+
+    //    if (this.districtID > 0) {
+    //        this.subscribers.getThanas
+    //            = this.basicDataService.gettThanasByDistrictId(e)
+    //                .subscribe(x => this.thanas = ((x) as any),
+    //                    (x) => {
+    //                        this.notificationService.showError(x);
+    //                    },
+    //                    () => {
+    //                        if (this.thanas.length > 0) {
+    //                            let thanaIDs = "";
+    //                            thanaIDs = this.thanas.map(x => x.PKID).join();
+    //                            this.distributors = [];
+
+    //                            let data = {
+    //                                districtID: this.districtID,
+    //                                thanaIDs: thanaIDs,
+    //                            };
+    //                            this.subscribers.distributorID =
+    //                                //this.apiService.httpGetByKey('BusinessPartner/GetDistributorByThanaIDs/', this.districtID + '/' + thanaIDs)
+    //                                this.apiService.httpPost('BusinessPartner/get-distributor-by-thanas', data)
+    //                                    .subscribe(x => this.distributors = ((x) as any),
+    //                                        (x) => {
+    //                                            this.notificationService.showError(x);
+    //                                        },
+    //                                        () => {
+
+    //                                        });
+
+    //                        }
+
+    //                    });
+    //    }
+
+    //}
+
+    //public ThanaChangeHandler(e: any) {
+    //    if (this.districtID < 0) {
+    //        this.notificationService.showError("Select District First");
+    //        return;
+    //    }
+    //    if (this.thanaID > 0) {
+    //        this.distributors = [];
+    //        //  this._senderDistributorSubscriber$ =
+    //        this.subscribers.distributorID =
+    //            this.apiService.httpGetByKey('Thana/get-distributor/', this.thanaID)
+    //                .subscribe(x => this.distributorID = ((x) as any),
+    //                    (x) => {
+    //                        this.notificationService.showError(x);
+    //                    },
+    //                    () => {
+    //                        if (this.distributorID > 0) {
+    //                            //this.distributors = [];
+    //                            this.distributors = this._distributors.filter(x => x.PKID == this.distributorID)
+    //                        }
+
+    //                    });
+
+    //    }
+
+
+    //}
+
+    public districtChangeHandler(e: any) {
+        this.employees = [];
+        this.loadEmployeeGrid();
+        this.iJobsTemp = [];
+        this.iCancelJobs = [];
+        this.loadGrid();
+        this.loadCancelGrid();
+        this.selectedDistributorIds = [];
+
+
+
+        this.thanas = [];
+        this.thanaID = null;
+
+        //  this.selectedRegionArea.push(this.regionID)
+
+        if (this.districtID > 0 && this.districtID != null) {
+
+            this.subscribers.getthanas
+                = this._getThanaSubscriber$
+                = this.apiService.httpGet<Thana[]>('Thana/get-thanas/' + this.districtID)         // for district
+                    .subscribe(
+
+                        (x) => { this.thanas = x },
+                        (e) => { this.notificationService.showError(e); },
+                        () => {
+
+                            if (this.BpLocations.length < 0) {
+                                this.notificationService.showWarning("No Thana available");
+                                return;
+                            } else {
+
+
+                                this.distributors = [];
+
+                                if (this.BpLocations.length > 0) {
+                                    let bplocations = this.BpLocations.filter(x => x.districtID == this.districtID);
+
+                                    bplocations.forEach(x => {
+
+                                        this._distributors.forEach(item => {
+                                            if (item.PKID == x.distributorID) {
+                                                let distributorExist = this.distributors.find(y => y.PKID == x.distributorID);
+                                                if (!distributorExist) {
+                                                    var businessPartner = new BusinessPartner();
+                                                    businessPartner.Name = item.Name;
+                                                    businessPartner.PKID = item.PKID;
+                                                    this.distributors.push(businessPartner);
+                                                }
+                                            }
+
+                                        })
+                                    })
+
+                                    this.sort(this.distributors);
+                                }
+
+
+
+                                if (this.thanas.length > 0) {
+                                    this.sort(this.thanas);
+                                    this.thanaLoad();
+                                }
+
+
+                            }
+
+                        });
+
+            // this.getThana();
+
+        }
+
+        if (this.districtID == null) {
+            this.getBPLocationInitialDistributor();
+        }
+
+    }
+
+    public ThanaChangeHandler(e: any) {
+        this.distributors = [];
+        this.selectedDistributorIds = [];
+        if (this.districtID < 0) {
+            this.notificationService.showError("Select District First");
+            return;
+        }
+        if (this.thanaID > 0) {
+            this.distributors = [];
+
+            let bplocations = this.BpLocations.filter(x => x.districtID == this.districtID && x.thanaID == this.thanaID);
+
+            bplocations.forEach(x => {
+
+                this._distributors.forEach(item => {
+                    if (item.PKID == x.distributorID) {
+                        let distributorExist = this.distributors.find(x => x.PKID == x.DistributorID);
+                        if (!distributorExist) {
+                            var businessPartner = new BusinessPartner();
+                            businessPartner.Name = item.Name;
+                            businessPartner.PKID = item.PKID;
+                            this.distributors.push(businessPartner);
+                        }
+                    }
+
+                })
+
+            })
+
+            if (this.distributors.length > 0)
+                this.sort(this.distributors);
+
+
+
+            // team attendance  load and bla bla
+            if (this.distributors != undefined) {
+
+                this.distributors.forEach(x => {
+                    if (x.PKID != undefined) {
+                        this.selectedDistributorIds.push(x.PKID)
+                    }
+
+                })
+
+                let selectedID = this.selectedDistributorIds.join();
+
+                let data = {
+                    distributorIDs: selectedID,
+                    enumText: EmployeeTypeEnum.InstallationTeam
+                };
+
+
+                this.employees = [];
+                this.mapEmployees = [];
+
+
+                this.subscribers.getEmployees =
+                    this.apiService.httpPost('Employee/GetJobInstalLers', data)
+                        .subscribe(
+                            (x) => { this.employees = ((x) as any) },
+                            (e) => { this.notificationService.showError(e); },
+                            () => {
+                                this.mapEmployees = this.employees.filter(x => x.Latitude > 0 && x.Longitude > 0);
+                                this.loadTotalJobcount(data);
+
+                            });
+            }
+
+        }
+    }
+
+    search() {
+        this.iJobs = [];
+        this.iJobsTemp = [];
+        this.resources[0].data = [];
+        this.events = [];
+        this.IsKendoSchedulerLoading = true;
+        this.loadScheduler();
+        this.IsKendoSchedulerLoading = false;
+
+        if (this.selectedDistributorIds === undefined || this.selectedDistributorIds.length < 0) {
+            this.notificationService.showWarning('Select at least one distributor');
+            return;
+        }
+        let selectedDistributorId = this.selectedDistributorIds.join();
+        if (selectedDistributorId === undefined || selectedDistributorId === "") {
+            this.notificationService.showWarning('Select at least one distributor');
+            return;
+        }
+
+        const jobCode = (this.jobCode === undefined || this.jobCode === null || this.jobCode === '') ? null : this.jobCode.trim();
+        const subscriberId = (this.subscriberId === undefined || this.subscriberId === null || this.subscriberId === '') ? null : this.subscriberId.trim();
+        const customerPhone = (this.customerPhone === undefined || this.customerPhone === null || this.customerPhone === '') ? null : this.customerPhone.trim();
+        const STBNumber = (this.stbNumber === undefined || this.stbNumber === null || this.stbNumber === '') ? null : this.stbNumber.trim();
+        const fromDate = (this.fromDate === undefined || this.fromDate === null) ? null : this.fromDate.toDateString();
+        const toDate = (this.toDate === undefined || this.toDate === null) ? null : this.toDate.toDateString();
+        //  const jstatus = (this.jobstatus == undefined || this.jobstatus == null) ? null : this.jobstatus;
+
+        let data = {
+            distributorID: selectedDistributorId,
+            jobCode: jobCode,
+            subscriberId: subscriberId,
+            customerPhone: customerPhone,
+            stbNumber: STBNumber,
+            fromDate: fromDate,
+            jstatus: this.jobstatus
+        };
+
+        //  if (this.isVariousJobs == false) {
+
+
+        this._getallJobs =
+            this.subscribers.listGet =
+            this.apiService.httpPost('Job/get-all-jobs', data)
+                .subscribe(x => {
+                    this.iJobsOtherTemp = ((x) as any);
+                },
+                    (x) => { this.notificationService.showError(x); },
+                    () => {
+                        for (let index = 0; index < this.iJobsOtherTemp.length; index++) {
+                            if (this.iJobsOtherTemp[index].Status == undefined) {
+                                this.iJobsOtherTemp[index].AssignmentStatusString = 'None';
+                            } else {
+                                this.iJobsOtherTemp[index].AssignmentStatusString = EnumJobStatus[this.iJobsOtherTemp[index].Status];
+                            }
+                        }
+
+                        this.iJobsTemp = this.iJobsOtherTemp;
+                       // this.iCancelJobs = this.iJobsOtherTemp.filter(x => x.Status == EnumJobStatus.Cancel);
+                        this.loadGrid();
+                        // this.loadCancelGrid();
+                        this.iJobs = this.iJobsTemp.filter(x => (x.Status == EnumJobStatus.Assinged || x.Status == EnumJobStatus.Received || x.Status == EnumJobStatus.Completed || x.Status == EnumJobStatus.Rejected || x.Status == EnumJobStatus.NotYetAccept || x.Status == EnumJobStatus.Request_Re_Assign || x.Status == EnumJobStatus.UnSchedule || x.Status == EnumJobStatus.Reschedule) && (x.CreatedDate == this.selectedDate.toDateString() || x.AssignmentStatusTime.toDateString() == this.selectedDate.toDateString()));
+                        //if (this.selectedDistributorIds !== undefined || this.selectedDistributorIds.length > 0)
+                        //    this.onDistributorChanged(this.selectedDistributorIds);
+                        this.IsKendoSchedulerLoading = true;
+                        this.loadScheduler();
+                        this.IsKendoSchedulerLoading = false;
+
+                        // this.initVariousJobs();
+
+                    });
+
+        //} else {
+        //    this.iVariousJobs = [];
+        //    this.subscribers.listGet =
+        //        this.subscribers = this.apiService.httpGet<Job[]>('Job/GetJobsForVariousSystemReport' + '/' + this.distributorID + '/' + this.divisionID + '/' + fromDate + '/' + toDate)
+        //            .subscribe(x => {
+        //                this.iVariousJobs = ((x) as any);
+        //            },
+        //                (x) => { this.notificationService.showError(x); },
+        //                () => {
+
+        //                    this.loadGrid1();
+
+
+        //                });
+        //}
+
+        //  this.initVariousJobs();
+
+
+       // this.jobStatusCount();
+
+    }
+
+    public jobStatusCount() {
+        if (this.selectedDistributorIds === undefined || this.selectedDistributorIds.length < 0) {
+            this.notificationService.showWarning('Select at least one distributor');
+            return;
+        }
+
+        let selectedDistributorId = this.selectedDistributorIds.join();
+        const fromDate = (this.fromDate === undefined || this.fromDate === null) ? null : this.fromDate.toDateString();
+        // const toDate = (this.toDate === undefined || this.toDate === null) ? null : this.toDate.toDateString();
+
+        let data = {
+            distributorIDs: selectedDistributorId,
+            fromDate: fromDate,
+        };
+
+        this.iJobStatus = [];
+
+        this.subscribers.listGet =
+            this._getJobCounts =
+            this.subscribers = this.apiService.httpPost('Job/job-number-count', data)
+                .subscribe(x => {
+                    this.iJobStatus = ((x) as any);
+                },
+                    (x) => { this.notificationService.showError(x); },
+                    () => {
+
+                        this.loadGridJobStatus();
+                    });
+    }
+
+
+
+    public initVariousJobs() {
+
+        if (this.selectedDistributorIds === undefined || this.selectedDistributorIds.length < 0) {
+            this.notificationService.showWarning('Select at least one distributor');
+            return;
+        }
+
+        let selectedDistributorId = this.selectedDistributorIds.join();
+        const fromDate = (this.fromDate === undefined || this.fromDate === null) ? null : this.fromDate.toDateString();
+        const toDate = (this.toDate === undefined || this.toDate === null) ? null : this.toDate.toDateString();
+
+        let data = {
+            distributorID: selectedDistributorId,
+            fromDate: fromDate,
+
+        };
+
+        this.iVariousJobs = [];
+
+        this.subscribers.listGet =
+            this._getvariousJobs =
+            this.subscribers = this.apiService.httpPost('Job/get-jobs-for-various-system', data)
+                .subscribe(x => {
+                    this.iVariousJobs = ((x) as any);
+                },
+                    (x) => { this.notificationService.showError(x); },
+                    () => {
+                        this.loadGrid1();
+                    });
+
+
+    }
+
+    public loadGridJobStatus(): void {
+        this.gridViewJobStatus = {
+            data: this.iJobStatus.slice(this.skipJobStatus, this.skipJobStatus + this.pageSizeJobStatus),
+            total: this.iJobStatus.length
+        };
+
+    }
+
+    public loadGrid1(): void {
+        this.gridView3 = {
+            data: this.iVariousJobs.slice(this.skip3, this.skip3 + this.pageSize3),
+            total: this.iVariousJobs.length
+        };
+
+    }
+
+    public closeModal(): void {
+        this.bsModalRef.hide();
+      //  this.search();
+    }
+
+    public closeRescheduleModal(): void {
+        this.bsModalRef.hide();
+        this.search();
+    }
+
+    public rowCallback = (context: RowClassArgs) => {
+        //return {
+        //    //green: context.dataItem.AssignmentStatus === 1,
+        //    //yellow: context.dataItem.AssignmentStatus === 2,
+        //    //red: context.dataItem.AssignmentStatus === 3,
+        //    //grey: context.dataItem.AssignmentStatus === 4,
+        //    //pink: context.dataItem.AssignmentStatus === 0,
+        //    //orange: context.dataItem.AssignmentStatus === 10,
+        //    //violet: context.dataItem.AssignmentStatus === 15,
+        //    //cyan: context.dataItem.AssignmentStatus === 17,
+        //    //brown: context.dataItem.AssignmentStatus === 18,
+        //    //blue: context.dataItem.AssignmentStatus === 16
+
+        //    //green: context.dataItem.Status === 1,
+        //    //yellow: context.dataItem.Status === 2,
+        //    //red: context.dataItem.Status === 3,
+        //    //grey: context.dataItem.Status === 4,
+        //    //pink: context.dataItem.Status === 0,
+        //    //orange: context.dataItem.Status === 10,
+        //    //violet: context.dataItem.Status === 15,
+        //    //cyan: context.dataItem.Status === 17,
+        //    //brown: context.dataItem.Status === 18,
+        //    //blue: context.dataItem.Status === 16,
+        //    //deepGrey: context.dataItem.Status === 20
+        //};
+        if (context.dataItem.Status == EnumJobStatus.Open) {
+            return { pink: true };
+        } else if (context.dataItem.Status == EnumJobStatus.Assinged) {
+            return { green: true };
+        } else if (context.dataItem.Status == EnumJobStatus.Received) {
+            return { yellow: true };
+        } else if (context.dataItem.Status == EnumJobStatus.Rejected) {
+            return { red: true };
+        } else if (context.dataItem.Status == EnumJobStatus.Completed) {
+            return { grey: true };
+        } else if (context.dataItem.Status == EnumJobStatus.Reschedule) {
+            return { orange: true };
+        } else if (context.dataItem.Status == EnumJobStatus.NotYetAccept) {
+            return { violet: true };
+        } else if (context.dataItem.Status == EnumJobStatus.Accepted) {
+            return { blue: true };
+        } else if (context.dataItem.Status == EnumJobStatus.Request_Re_Assign) {
+            return { cyan: true };
+        } else if (context.dataItem.Status == EnumJobStatus.UnSchedule) {
+            return { brown: true };
+        } else if (context.dataItem.Status == EnumJobStatus.Cancel) {
+            return { indigo: true };
+        } else {
+            return {};
+        }
+    }
+
+    public colorCode(code: string): SafeStyle {
+        let result;
+
+        if (code === "" || code === null || code === undefined) {
+            result = '#FF0000';
+        } else {
+            result = '#008000';
+        }
+
+        return this.sanitizer.bypassSecurityTrustStyle(result);
+    }
+
+    public onJobAssignmentClick(template: TemplateRef<any>, jobID: number, jobType: EnumJobType, distributorID: number, status: number): void {
+        const jobAssignment = {
+            JobID: jobID,
+            JobType: jobType,
+            iJobs: this.iJobs,
+            DistributorID: distributorID,
+            Status: status
+        };
+
+        this._dataTransferService.setData(jobAssignment);
+        this._pubSubService.on('assign-picker').subscribe(() => this.closeModal());
+        this.bsModalRef = this.modalService.show(
+            template,
+            Object.assign({}, this.config, { class: 'gray modal-lg' })
+        );
+    }
+
+    //public onJobDetailsClick(template: TemplateRef<any>, jobID: number, jobType: EnumJobType, distributorID: number): void {
+    //    const jobAssignment = {
+    //        JobID: jobID,
+    //        JobType: jobType,
+    //        iJobs: this.iJobs,
+    //        DistributorID: distributorID
+    //    };
+
+    //    this._dataTransferService.setData(jobAssignment);
+    //    this._pubSubService.on('details-picker').subscribe(() => this.closeModal());
+    //    this.bsModalRef = this.modalService.show(
+    //        template,
+    //        Object.assign({}, this.config, { class: 'gray modal-lg' })
+    //    );
+    //}
+
+    public print(reportModal: TemplateRef<any>) {
+
+        const fromDate = (this.fromDate === undefined || this.fromDate === null) ? null : this.fromDate.toDateString();
+        const toDate = (this.toDate === undefined || this.toDate === null) ? null : this.toDate.toDateString();
+        const distributorID = (this.distributorID === undefined || this.distributorID === null) ? null : this.distributorID;
+
+        this.definition = 'Ease.PPIC.Reports.Transactions.Sales.rptJobDetails';
+
+        this.parameters = {
+            FromDate: fromDate,
+            ToDate: toDate,
+            DistributorID: distributorID
+        };
+
+        this.bsModalRef = this.modalService.show(
+            reportModal,
+            Object.assign({}, this.config, { class: 'gray modal-lg' })
+        );
+    }
+
+    public export() {
+
+        const fromDate = (this.fromDate === undefined || this.fromDate === null) ? null : this.fromDate.toDateString();
+        const toDate = (this.toDate === undefined || this.toDate === null) ? null : this.toDate.toDateString();
+        const distributorID = (this.distributorID === undefined || this.distributorID === null) ? null : this.distributorID;
+
+        const data = {
+            fromDate: fromDate,
+            toDate: toDate,
+            distributorID: distributorID
+        };
+
+
+        let tempBlob: any;
+
+        this.apiService.httpPostFile('download/get-csv-WFMS/', data)
+            .subscribe(fileData => {
+
+                tempBlob = new Blob([fileData], { type: fileData.type });
+            },
+                (error) => {
+                    this.notificationService.showError(error);
+                }, () => {
+
+                    this.downloadBlob(tempBlob);
+                });
+
+
+    }
+
+    downloadBlob(data: any): void {
+        const blob: Blob = new Blob([data], { type: data.type });
+        const fileName = 'JobDetails.csv';
+        const objectUrl: string = URL.createObjectURL(blob);
+        const a: HTMLAnchorElement = document.createElement('a') as HTMLAnchorElement;
+
+        a.href = objectUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+
+        document.body.removeChild(a);
+        URL.revokeObjectURL(objectUrl);
+    }
+
+    onMouseOver(infoWindow, $event: MouseEvent, data: any, i: number) {
+        //  this.title = "Distributor:<strong>" + data.DistributorName + "</strong>\n" + "Thana:<strong>" + data.ThanaName+"</strong>"; 
+        this.Distributor = "Distributor:" + data.DistributorName;
+        this.Thana = "Thana:" + data.ThanaName;
+        this.Team = "Team:" + data.Name;
+
+        infoWindow.open();
+    }
+
+    onMouseOut(infoWindow, $event: MouseEvent, data: any, i: number) {
+        infoWindow.close();
+    }
+
+    onClickEvent($event: any) {
+        console.log($event);
+        if ($event.clientX >= 1 && $event.clientX <= 1560)
+            if ($event.clientY >= 1 && $event.clientY <= 350) {
+                return;
+            } else {
+
+                if (this.isFullCalender) {
+                    this.isFullCalender = false;
+                    this.height = 350;
+                } else {
+                    this.isFullCalender = true;
+                    this.height = 1000;
+                }
+
+            }
+    }
+
+    onTeamAttendanceEvent($event: any) {
+        if (this.isTeamAttendencePageEvent == true) {
+            this.isTeamAttendencePageEvent = false;
+            return;
+        } else {
+            if (this.isAttendence) {
+                this.isAttendenceSummary = true;
+                this.isAttendence = false;
+            } else {
+                this.isAttendenceSummary = false;
+                this.isAttendence = true;
+            }
+        }
+        //debugger;
+
+    }
+
+    public onDateChange(args: DateChangeEvent) {
+       
+        this.event = this.generateEvents(args.dateRange.start, 7);
+
+        //// We're setting the events after the current change detection cycle
+        //// has completed, hence we need to trigger a new one.
+        //this.cd.detectChanges();
+    }
+
+     public  generateEvents (startDate: Date, count: number): SchedulerEvent[] {
+        const events: SchedulerEvent[] = [];
+        let date = startDate;
+
+        //for (let i = 0; i < count; i++) {
+        //    const start = cloneDate(date);
+        //    start.setHours(10);
+
+        //    const end = cloneDate(date);
+        //    end.setHours(11);
+
+        //    events.push({
+        //        id: i,
+        //        title: start.toDateString(),
+        //        start,
+        //        end,
+        //        isAllDay: false
+        //    });
+
+        //    date = addDays(date, 1);
+        //}
+
+        return events;
+    };
+
+    public onRescheduleTimeClick(template: TemplateRef<any>, jobID: number, job: Job): void {
+        const jobReschedule = {
+            JobID: jobID,
+            Job: job
+        };
+
+        this._dataTransferService.setData(jobReschedule);
+        this._pubSubService.on('reschedule-picker').subscribe(() => this.closeRescheduleModal());
+        this.bsModalRef = this.modalService.show(
+            template,
+            Object.assign({}, this.config, { class: 'gray modal-lg' })
+        );
+    }
+
+    ngOnDestroy() {
+        //this._intervalSubscribers$.unsubscribe();
+    }
+
+    //public add() {
+    //    this.router.navigateByUrl('/wfms/VariousStatusList');
+    //}
+
+
+}
+
+
+
+
+
